@@ -170,9 +170,9 @@ assert_eq "Nome da missao correto" "Missao Alpha" "$(echo "$BODY" | jq -r '.nome
 GET "/missoes/$MISSAO_ID" "$TOKEN_FORASTEIRO"
 assert_status "GET /missoes/{id} (não membro com token) → 403" "403" "$STATUS"
 
-# Não membro sem token → GET é permitAll, mas principal=null → NPE → 500
+# GET /missoes agora exige autenticação (depende do operador logado) → sem token Spring Security bloqueia → 403
 GET "/missoes/$MISSAO_ID"
-assert_status "GET /missoes/{id} sem token → 500" "500" "$STATUS"
+assert_status "GET /missoes/{id} sem token → 403" "403" "$STATUS"
 
 PUT "/missoes/$MISSAO_ID" \
   '{"nome":"Missao Alpha v2","descricao":"Atualizada","dataLancamento":"2026-07-01","status":"ATIVA"}' \
@@ -376,7 +376,7 @@ POST "/sensores" \
 assert_status "POST /sensores TERMICO → 201" "201" "$STATUS"
 SENSOR_TERMICO_ID=$(echo "$BODY" | jq -r '.id')
 assert_eq "detalhe=CELSIUS (SensorTermico)" "CELSIUS" "$(echo "$BODY" | jq -r '.detalhe')"
-assert_eq "tipo=SensorTermico" "SensorTermico" "$(echo "$BODY" | jq -r '.tipo')"
+assert_eq "tipo=TERMICO (enum canônico)" "TERMICO" "$(echo "$BODY" | jq -r '.tipo')"
 
 POST "/sensores" \
   '{"nome":"Barometro","unidade":"hPa","limiteMin":950.0,"limiteMax":1050.0,"margemAlerta":5.0,"sateliteId":'"$SAT_ID"',"tipo":"PRESSAO","tipoPressao":"ABSOLUTA"}' \
@@ -408,7 +408,7 @@ POST "/sensores" \
   "$TOKEN_SUPERVISOR"
 assert_status "POST /sensores limiteMin >= limiteMax → 400" "400" "$STATUS"
 
-# Tipo inválido → IllegalArgumentException → 400
+# Tipo inválido (enum desconhecido) → HttpMessageNotReadableException → 400
 POST "/sensores" \
   '{"nome":"Son","unidade":"Hz","limiteMin":0.0,"limiteMax":100.0,"margemAlerta":10.0,"sateliteId":'"$SAT_ID"',"tipo":"SONICO"}' \
   "$TOKEN_SUPERVISOR"
