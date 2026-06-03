@@ -25,7 +25,7 @@ public class OperadorService implements UserDetailsService {
 
     public Operador registrar(RegistroRequest req) {
         if (operadorRepository.findByLogin(req.login()).isPresent()) {
-            throw new IllegalArgumentException("Login já existe: " + req.login());
+            throw new IllegalArgumentException("Login já está em uso");
         }
         Operador operador = Operador.builder()
                 .login(req.login())

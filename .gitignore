@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Segredos / variáveis de ambiente ###
+# Nunca commitar arquivos .env com credenciais reais (JWT_SECRET, ORACLE_PASSWORD, etc.)
+.env
+.env.*
+!.env.example

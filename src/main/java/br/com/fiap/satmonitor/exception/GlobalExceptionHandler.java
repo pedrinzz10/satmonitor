@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -73,6 +74,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         log.warn(ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(buildErro(403, "Acesso negado", req));
+    }
+
+    // Falha de login (usuário inexistente ou senha incorreta) → mesma resposta, sem enumeração
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErroResponse> handleAuthentication(AuthenticationException ex, HttpServletRequest req) {
+        log.warn("Falha de autenticação: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(buildErro(401, "Credenciais inválidas", req));
     }
 
     @ExceptionHandler(Exception.class)
