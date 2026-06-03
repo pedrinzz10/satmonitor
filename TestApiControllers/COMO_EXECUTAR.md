@@ -1,0 +1,262 @@
+# SatMonitor — Guia de Testes da API
+
+## Pré-requisitos
+
+| Ferramenta | Instalação |
+|---|---|
+| `curl` | já vem no Linux/macOS/Windows 10+ |
+| `jq` | `brew install jq` / `apt install jq` / [jq releases](https://jqlang.github.io/jq/download/) |
+| Aplicação rodando | `./gradlew bootRun` na raiz do projeto |
+
+---
+
+## Como executar
+
+```bash
+# 1. Dê permissão de execução (apenas na primeira vez)
+chmod +x TestApiControllers/test-api.sh
+
+# 2. Execute a partir da raiz do projeto
+./TestApiControllers/test-api.sh
+```
+
+A aplicação deve estar rodando em `http://localhost:8080` antes de executar.  
+O banco H2 em memória é limpo a cada restart (`ddl-auto=create-drop`), então **reinicie a aplicação antes de rodar o script** para garantir estado limpo.
+
+---
+
+## Saída esperada
+
+```
+▶ 1. Health check
+  ✓ PASS  GET /actuator/health → 200
+  ✓ PASS  Aplicação UP
+
+▶ 2. AUTH — Registro de operadores
+  ✓ PASS  POST /auth/registrar dono → 201
+  ...
+
+══════════════════════════════════════════════════════
+  Total de testes : 108
+  Passaram         : 108
+  Falharam         : 0
+══════════════════════════════════════════════════════
+```
+
+Se algum teste falhar, o resumo lista os casos com problema:
+
+```
+Testes que falharam — verifique e corrija:
+   1. POST /satelites (MEMBRO) → 403
+   2. GET /leituras/sensor/{id} inexistente → 404
+```
+
+**Exit code:** `0` se todos passaram, `1` se algum falhou (útil para CI).
+
+---
+
+## O que o script cobre
+
+### Seção 1 — Health check
+- `GET /actuator/health` → verifica se a aplicação está UP
+
+### Seção 2 — AUTH: Registro
+| Cenário | HTTP |
+|---|:---:|
+| Registro bem-sucedido (dono, membro, supervisor, forasteiro) | 201 |
+| Login duplicado | 400 |
+| Campo obrigatório em branco | 400 |
+
+### Seção 3 — AUTH: Login
+| Cenário | HTTP |
+|---|:---:|
+| Login com credenciais corretas (todos os 4 usuários) | 200 |
+| Token JWT preenchido no response | — |
+
+### Seção 4 — Missões: CRUD
+| Cenário | HTTP |
+|---|:---:|
+| Criar missão (DONO) | 201 |
+| Criador recebe role DONO automaticamente | — |
+| Listar missões do operador | 200 |
+| Buscar por id (membro da missão) | 200 |
+| Buscar por id (não membro com token) | 403 |
+| Buscar por id (sem token) | 500 |
+| Atualizar missão (DONO) | 200 |
+| Atualizar missão (não membro) | 404 |
+
+### Seção 5 — Missões: Entrar, Sair e DONO único
+| Cenário | HTTP |
+|---|:---:|
+| Entrar com senha errada | 401 |
+| Entrar com senha correta | 200 |
+| Entrar sendo já membro | 409 |
+| MEMBRO que é membro tenta PUT | 403 |
+| MEMBRO que é membro tenta DELETE | 403 |
+| DONO único tenta sair | 400 |
+| SUPERVISOR sai com sucesso | 204 |
+
+### Seção 6 — Missões: Gerenciamento de membros
+| Cenário | HTTP |
+|---|:---:|
+| Listar membros (não membro com token) | 403 |
+| Listar membros (qualquer membro) | 200 |
+| DONO tentando se remover via `/membros/{id}` | 403 |
+| MEMBRO tenta promover outro membro | 404 |
+| DONO promove para SUPERVISOR | 200 |
+| DONO rebaixa SUPERVISOR → MEMBRO | 200 |
+| DONO tenta alterar a própria role | 403 |
+| MEMBRO tenta remover outro membro | 404 |
+| DONO remove membro com sucesso | 204 |
+| Membro removido tenta sair | 404 |
+
+### Seção 7 — Satélites: CRUD
+| Cenário | HTTP |
+|---|:---:|
+| Criar sem token | 403 |
+| Criar sendo MEMBRO da missão | 403 |
+| Criar sendo SUPERVISOR | 201 |
+| Nome duplicado na mesma missão | 400 |
+| missaoId inexistente | 404 |
+| Listar todos (público) | 200 |
+| Buscar por id (público) | 200 |
+| Listar por missão com missaoId inexistente | 404 |
+| Listar por missão | 200 |
+| Estatísticas sem leituras (zeros) | 200 |
+| Atualizar sendo SUPERVISOR | 200 |
+| Atualizar sendo DONO | 200 |
+| Deletar sendo SUPERVISOR | 403 |
+| Buscar id inexistente | 404 |
+
+### Seção 8 — Sensores: Criação dos 4 tipos
+| Cenário | HTTP |
+|---|:---:|
+| Criar `SensorTermico` com `unidadeEscala=CELSIUS` | 201 |
+| Criar `SensorPressao` com `tipoPressao=ABSOLUTA` | 201 |
+| Criar `SensorRadiacao` com `tipoRadiacao=IONIZANTE` | 201 |
+| Criar `Magnetometro` com `eixosMedicao=XYZ` | 201 |
+
+### Seção 9 — Sensores: Validações e controle de acesso
+| Cenário | HTTP |
+|---|:---:|
+| `limiteMin >= limiteMax` | 400 |
+| Tipo de sensor inválido | 400 |
+| Campo específico ausente para o tipo | 400 |
+| Nome duplicado no mesmo satélite | 400 |
+| `sateliteId` inexistente | 404 |
+| MEMBRO da missão tenta criar | 403 |
+| Listar todos (público) | 200 |
+| Buscar por id (público) | 200 |
+| Listar por `sateliteId` inexistente | 404 |
+| Listar por satélite | 200 |
+| Atualizar sendo SUPERVISOR | 200 |
+| Atualizar sendo DONO | 200 |
+
+### Seção 10 — Leituras: StatusCalculator
+Sensor: `limiteMin=-10`, `limiteMax=90`, `margemAlerta=5%` → `zonaAlertaMin=-5`, `zonaAlertaMax=85`
+
+| Valor | Status esperado | Regra |
+|---:|:---:|---|
+| `40.0` | NORMAL | dentro de [-5, 85] |
+| `87.0` | ALERTA | entre zonaAlertaMax(85) e limiteMax(90) |
+| `150.0` | CRITICO | acima de limiteMax(90) |
+| `-50.0` | CRITICO | abaixo de limiteMin(-10) |
+| `-8.0` | ALERTA | entre limiteMin(-10) e zonaAlertaMin(-5) |
+| `-10.0` | ALERTA | exatamente no limiteMin (fronteira inclusiva) |
+| `85.0` | NORMAL | exatamente na zonaAlertaMax (fronteira exclusiva) |
+| `sensorId=99999` | 404 | sensor inexistente |
+| sem `sensorId` | 400 | campo obrigatório ausente |
+
+### Seção 11 — Leituras: Consultas e filtros
+| Cenário | HTTP |
+|---|:---:|
+| Listar todas (público, ordenadas por data desc) | 200 |
+| Buscar por id | 200 |
+| Buscar id inexistente | 404 |
+| Listar por sensor | 200 |
+| Filtrar por `?status=CRITICO` | 200 |
+| Filtrar por `?status=ALERTA` | 200 |
+| Filtrar por `?status=NORMAL` | 200 |
+| Listar por `sensorId` inexistente | 404 |
+| Sensor sem leituras (`totalElements=0`) | 200 |
+| Listar por satélite | 200 |
+| Filtrar por satélite + status | 200 |
+| Listar por `sateliteId` inexistente | 404 |
+
+### Seção 12 — Satélites: Estatísticas com leituras
+| Cenário | Verificação |
+|---|---|
+| Estatísticas após leituras | `totalLeituras >= 7`, `totalCriticos >= 2`, `totalAlertas >= 2`, `mediaValor` e `ultimaLeitura` preenchidos |
+
+### Seção 13 — Leituras: Exclusão
+| Cenário | HTTP |
+|---|:---:|
+| Deletar sem token | 403 |
+| Deletar (não membro da missão) | 403 |
+| Deletar sendo MEMBRO da missão (role insuficiente) | 403 |
+| Deletar sendo SUPERVISOR | 204 |
+| Deletar leitura já deletada | 404 |
+| Deletar sendo DONO | 204 |
+
+### Seção 14 — Sensores: Exclusão
+| Cenário | HTTP |
+|---|:---:|
+| Deletar sendo SUPERVISOR | 403 |
+| Deletar sendo DONO | 204 |
+| Buscar sensor deletado | 404 |
+| Confirma totalSensores após delete | — |
+
+### Seção 15 — Satélites: Exclusão com cascade
+| Cenário | HTTP |
+|---|:---:|
+| Deletar sendo SUPERVISOR | 403 |
+| Deletar sendo DONO | 204 |
+| Buscar satélite deletado | 404 |
+
+### Seção 16 — Missões: Exclusão e saída voluntária
+| Cenário | HTTP |
+|---|:---:|
+| SUPERVISOR tenta deletar missão | 403 |
+| MEMBRO tenta deletar missão | 403 |
+| MEMBRO sai voluntariamente | 204 |
+| DONO deleta missão | 204 |
+| Buscar missão deletada | 404 |
+
+---
+
+## Mapeamento completo de endpoints testados
+
+| Método | Rota | Coberta |
+|---|---|:---:|
+| POST | `/auth/registrar` | ✅ |
+| POST | `/auth/login` | ✅ |
+| POST | `/missoes` | ✅ |
+| GET | `/missoes` | ✅ |
+| GET | `/missoes/{id}` | ✅ |
+| PUT | `/missoes/{id}` | ✅ |
+| DELETE | `/missoes/{id}` | ✅ |
+| POST | `/missoes/{id}/entrar` | ✅ |
+| POST | `/missoes/{id}/sair` | ✅ |
+| GET | `/missoes/{id}/membros` | ✅ |
+| DELETE | `/missoes/{id}/membros/{membroId}` | ✅ |
+| PATCH | `/missoes/{id}/membros/{membroId}` | ✅ |
+| POST | `/satelites` | ✅ |
+| GET | `/satelites` | ✅ |
+| GET | `/satelites/{id}` | ✅ |
+| GET | `/satelites/missao/{missaoId}` | ✅ |
+| GET | `/satelites/{id}/estatisticas` | ✅ |
+| PUT | `/satelites/{id}` | ✅ |
+| DELETE | `/satelites/{id}` | ✅ |
+| POST | `/sensores` | ✅ |
+| GET | `/sensores` | ✅ |
+| GET | `/sensores/{id}` | ✅ |
+| GET | `/sensores/satelite/{sateliteId}` | ✅ |
+| PUT | `/sensores/{id}` | ✅ |
+| DELETE | `/sensores/{id}` | ✅ |
+| POST | `/leituras` | ✅ |
+| GET | `/leituras` | ✅ |
+| GET | `/leituras/{id}` | ✅ |
+| GET | `/leituras/sensor/{sensorId}` | ✅ |
+| GET | `/leituras/satelite/{sateliteId}` | ✅ |
+| DELETE | `/leituras/{id}` | ✅ |
+| GET | `/actuator/health` | ✅ |
