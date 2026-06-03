@@ -116,8 +116,8 @@ public class SensorService {
     }
 
     private Sensor instanciarSubclasse(SensorRequest req) {
-        return switch (req.tipo().toUpperCase()) {
-            case "TERMICO" -> {
+        return switch (req.tipo()) {
+            case TERMICO -> {
                 if (req.unidadeEscala() == null || req.unidadeEscala().isBlank()) {
                     throw new IllegalArgumentException("unidadeEscala é obrigatório para sensores do tipo TERMICO");
                 }
@@ -125,7 +125,7 @@ public class SensorService {
                 s.setUnidadeEscala(UnidadeEscala.valueOf(req.unidadeEscala().toUpperCase()));
                 yield s;
             }
-            case "PRESSAO" -> {
+            case PRESSAO -> {
                 if (req.tipoPressao() == null || req.tipoPressao().isBlank()) {
                     throw new IllegalArgumentException("tipoPressao é obrigatório para sensores do tipo PRESSAO");
                 }
@@ -133,7 +133,7 @@ public class SensorService {
                 s.setTipoPressao(TipoPressao.valueOf(req.tipoPressao().toUpperCase()));
                 yield s;
             }
-            case "RADIACAO" -> {
+            case RADIACAO -> {
                 if (req.tipoRadiacao() == null || req.tipoRadiacao().isBlank()) {
                     throw new IllegalArgumentException("tipoRadiacao é obrigatório para sensores do tipo RADIACAO");
                 }
@@ -141,7 +141,7 @@ public class SensorService {
                 s.setTipoRadiacao(TipoRadiacao.valueOf(req.tipoRadiacao().toUpperCase()));
                 yield s;
             }
-            case "MAGNETOMETRO" -> {
+            case MAGNETOMETRO -> {
                 if (req.eixosMedicao() == null || req.eixosMedicao().isBlank()) {
                     throw new IllegalArgumentException("eixosMedicao é obrigatório para sensores do tipo MAGNETOMETRO");
                 }
@@ -149,7 +149,6 @@ public class SensorService {
                 s.setEixosMedicao(EixosMedicao.valueOf(req.eixosMedicao().toUpperCase()));
                 yield s;
             }
-            default -> throw new IllegalArgumentException("Tipo de sensor inválido: " + req.tipo());
         };
     }
 
@@ -164,6 +163,14 @@ public class SensorService {
     }
 
     private SensorResponse toResponse(Sensor sensor) {
+        TipoSensor tipo = switch (sensor) {
+            case SensorTermico t -> TipoSensor.TERMICO;
+            case SensorPressao p -> TipoSensor.PRESSAO;
+            case SensorRadiacao r -> TipoSensor.RADIACAO;
+            case Magnetometro m -> TipoSensor.MAGNETOMETRO;
+            default -> null;
+        };
+
         String detalhe = switch (sensor) {
             case SensorTermico t ->
                     t.getUnidadeEscala() != null ? t.getUnidadeEscala().name() : null;
@@ -179,7 +186,7 @@ public class SensorService {
         return SensorResponse.builder()
                 .id(sensor.getId())
                 .nome(sensor.getNome())
-                .tipo(sensor.getClass().getSimpleName())
+                .tipo(tipo)
                 .unidade(sensor.getUnidade())
                 .limiteMin(sensor.getLimiteMin())
                 .limiteMax(sensor.getLimiteMax())

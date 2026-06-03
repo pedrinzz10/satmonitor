@@ -8,6 +8,7 @@ import br.com.fiap.satmonitor.missao.entity.OperadorMissao;
 import br.com.fiap.satmonitor.missao.enums.RoleMissao;
 import br.com.fiap.satmonitor.missao.repository.MissaoRepository;
 import br.com.fiap.satmonitor.missao.repository.OperadorMissaoRepository;
+import br.com.fiap.satmonitor.satelite.repository.SateliteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,7 @@ public class MissaoService {
 
     private final MissaoRepository missaoRepository;
     private final OperadorMissaoRepository operadorMissaoRepository;
+    private final SateliteRepository sateliteRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -209,7 +211,8 @@ public class MissaoService {
     }
 
     private MissaoResponse toResponse(Missao missao, RoleMissao roleDoOperador) {
-        int totalMembros = missao.getMembros() != null ? missao.getMembros().size() : 0;
+        int totalMembros = (int) operadorMissaoRepository.countByMissaoId(missao.getId());
+        int totalSatelites = (int) sateliteRepository.countByMissaoId(missao.getId());
 
         return MissaoResponse.builder()
                 .id(missao.getId())
@@ -219,7 +222,7 @@ public class MissaoService {
                 .status(missao.getStatus())
                 .roleDoOperador(roleDoOperador.name())
                 .totalMembros(totalMembros)
-                .totalSatelites(0)
+                .totalSatelites(totalSatelites)
                 .build();
     }
 

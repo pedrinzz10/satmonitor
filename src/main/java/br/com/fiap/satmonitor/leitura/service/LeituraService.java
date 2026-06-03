@@ -59,7 +59,7 @@ public class LeituraService {
 
     @Transactional(readOnly = true)
     public Page<LeituraResponse> listar(Pageable pageable) {
-        return leituraRepository.findAllOrderByDataHoraDesc(pageable).map(this::toResponse);
+        return leituraRepository.findAll(pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

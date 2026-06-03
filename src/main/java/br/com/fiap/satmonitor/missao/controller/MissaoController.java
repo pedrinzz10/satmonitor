@@ -122,9 +122,12 @@ public class MissaoController {
             @AuthenticationPrincipal Operador operadorLogado) {
 
         List<MembroResponse> membros = missaoService.listarMembros(id, operadorLogado).stream()
-                .peek(m -> m.add(
-                        linkTo(methodOn(MissaoController.class).listarMembros(id, operadorLogado))
-                                .withSelfRel()))
+                .peek(m -> {
+                    m.add(linkTo(methodOn(MissaoController.class)
+                            .removerMembro(id, m.getOperadorId(), null)).withRel("remover"));
+                    m.add(linkTo(methodOn(MissaoController.class)
+                            .promoverMembro(id, m.getOperadorId(), null, null)).withRel("promover"));
+                })
                 .toList();
 
         return ResponseEntity.ok(membros);

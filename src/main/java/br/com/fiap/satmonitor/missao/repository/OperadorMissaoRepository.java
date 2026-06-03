@@ -15,5 +15,7 @@ public interface OperadorMissaoRepository extends JpaRepository<OperadorMissao, 
 
     boolean existsByMissaoIdAndOperadorId(Long missaoId, Long operadorId);
 
+    long countByMissaoId(Long missaoId);
+
     long countByMissaoIdAndRole(Long missaoId, RoleMissao role);
 }

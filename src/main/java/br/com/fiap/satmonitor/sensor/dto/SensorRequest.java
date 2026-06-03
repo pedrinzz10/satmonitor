@@ -1,5 +1,6 @@
 package br.com.fiap.satmonitor.sensor.dto;
 
+import br.com.fiap.satmonitor.sensor.enums.TipoSensor;
 import jakarta.validation.constraints.*;
 
 public record SensorRequest(
@@ -7,9 +8,9 @@ public record SensorRequest(
         @NotBlank String unidade,
         @NotNull Double limiteMin,
         @NotNull Double limiteMax,
-        @NotNull @Min(0) @Max(100) Double margemAlerta,
+        @NotNull @DecimalMin("0") @DecimalMax("100") Double margemAlerta,
         @NotNull Long sateliteId,
-        @NotBlank String tipo,
+        @NotNull TipoSensor tipo,
         String unidadeEscala,
         String tipoPressao,
         String tipoRadiacao,

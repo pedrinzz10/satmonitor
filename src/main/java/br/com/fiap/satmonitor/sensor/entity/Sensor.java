@@ -42,8 +42,8 @@ public class Sensor {
     private Double limiteMax;
 
     @NotNull
-    @Min(0)
-    @Max(100)
+    @DecimalMin("0")
+    @DecimalMax("100")
     @Column(nullable = false)
     private Double margemAlerta;
 

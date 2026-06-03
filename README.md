@@ -15,7 +15,7 @@ Essa lógica de status automático é a principal regra de negócio da API e per
 ## Stack
 
 - Java 21
-- Spring Boot 4.0.6
+- Spring Boot 3.4.5
 - Gradle (Groovy)
 - Spring Data JPA + Hibernate
 - Spring Security + JWT (auth0/java-jwt 4.4.0)
@@ -162,8 +162,8 @@ Fluxo de entrada: qualquer operador autenticado pode entrar numa missão apresen
 - JWT via auth0/java-jwt. Token válido por 8 horas. Issuer: "satmonitor"
 - Secret via variável de ambiente: api.security.token.secret
 - Senha sempre em BCrypt — nunca texto puro
-- Rotas públicas: GET em todas as entidades, POST /leituras (IoT), POST /auth/login, POST /auth/registrar
-- Rotas protegidas: POST/PUT/DELETE em missoes, satelites, sensores. Rotas de membros.
+- Rotas públicas: GET em satélites, sensores e leituras, POST /leituras (IoT), POST /auth/login, POST /auth/registrar
+- Rotas protegidas: todas as rotas de /missoes (inclusive GET, pois dependem do operador logado) e POST/PUT/DELETE em satelites, sensores. Rotas de membros.
 - POST /leituras é público porque o ESP32 (IoT) não gerencia tokens JWT
 
 ---

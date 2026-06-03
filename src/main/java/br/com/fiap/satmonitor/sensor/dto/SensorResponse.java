@@ -1,5 +1,6 @@
 package br.com.fiap.satmonitor.sensor.dto;
 
+import br.com.fiap.satmonitor.sensor.enums.TipoSensor;
 import lombok.*;
 import org.springframework.hateoas.RepresentationModel;
 
@@ -12,7 +13,7 @@ public class SensorResponse extends RepresentationModel<SensorResponse> {
 
     private Long id;
     private String nome;
-    private String tipo;
+    private TipoSensor tipo;
     private String unidade;
     private Double limiteMin;
     private Double limiteMax;
