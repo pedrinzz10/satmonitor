@@ -38,7 +38,8 @@ As responsabilidades se dividem em três grupos:
 ```
 MissaoService
  ├── MissaoRepository          — CRUD de Missao (JPA)
- ├── OperadorMissaoRepository  — CRUD e queries de OperadorMissao
+ ├── OperadorMissaoRepository  — CRUD e queries de OperadorMissao (inclui countByMissaoId)
+ ├── SateliteRepository        — countByMissaoId para o totalSatelites do response
  └── PasswordEncoder           — BCrypt para senhaMissao
 ```
 
@@ -339,12 +340,12 @@ Mapeia `Missao` → `MissaoResponse`. Campos mapeados:
 | `dataLancamento` | `missao.getDataLancamento()` |
 | `status` | `missao.getStatus()` |
 | `roleDoOperador` | `roleDoOperador.name()` — passado explicitamente pelo caller |
-| `totalMembros` | `missao.getMembros().size()` |
-| `totalSatelites` | `0` (hardcoded — aguarda integração com módulo satelite) |
+| `totalMembros` | `operadorMissaoRepository.countByMissaoId(missao.getId())` |
+| `totalSatelites` | `sateliteRepository.countByMissaoId(missao.getId())` |
 
 **`senhaMissao` nunca aparece no response** — campo omitido intencionalmente.
 
-**`totalMembros` depende da coleção lazy estar carregada.** Como `toResponse` é sempre chamado dentro de métodos `@Transactional`, a coleção é carregada on-demand sem `LazyInitializationException`. Em `criar`, a coleção está vazia (recém-persistida); `totalMembros` virá como 0 nesse momento, mas o vínculo do DONO existe no banco.
+**`totalMembros` e `totalSatelites` são contados por query, não pela coleção em memória.** Antes, `totalMembros` vinha de `missao.getMembros().size()` (que retornava 0 logo após `criar`, pois o vínculo do DONO é salvo num objeto separado) e `totalSatelites` era `0` fixo. Agora ambos usam `countByMissaoId` no repositório; como a contagem ocorre dentro da mesma transação, o auto-flush garante valores corretos inclusive imediatamente após a criação (`totalMembros = 1`).
 
 ---
 

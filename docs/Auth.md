@@ -132,7 +132,7 @@ O `Operador` implementa `UserDetails` para integração nativa com Spring Securi
 | Método                      | Retorno              | Detalhe                                           |
 |-----------------------------|----------------------|---------------------------------------------------|
 | `getAuthorities()`          | `List<SimpleGrantedAuthority>` | Retorna `["ROLE_OPERADOR"]` (prefixo `ROLE_` adicionado) |
-| `getPassword()`             | `senha`              | O campo com hash BCrypt                           |
+| `getPassword()`             | `senha`              | Hash BCrypt — anotado com `@JsonIgnore` para nunca ser serializado em JSON |
 | `getUsername()`             | `login`              | Identificador único do operador                   |
 | `isAccountNonExpired()`     | `true`               | Sem controle de expiração de conta                |
 | `isAccountNonLocked()`      | `true`               | Sem bloqueio de conta                             |
@@ -271,7 +271,7 @@ Busca o operador pelo `login`. Lança `UsernameNotFoundException` se não encont
 
 #### `registrar(RegistroRequest req)`
 
-1. Verifica se já existe um operador com o mesmo login → lança `IllegalArgumentException("Login já existe: ...")` se sim.
+1. Verifica se já existe um operador com o mesmo login → lança `IllegalArgumentException("Login já está em uso")` se sim. A mensagem é genérica e **não ecoa o login** informado (mitigação contra enumeração de usuários).
 2. Cria um `Operador` via builder:
    - `login` vem direto do request.
    - `senha` é encriptada com `passwordEncoder.encode(req.senha())` — sempre BCrypt.
@@ -373,9 +373,9 @@ http
   .headers(h -> h.frameOptions(f -> f.sameOrigin()))
   .authorizeHttpRequests(auth -> auth
       .requestMatchers(POST, "/auth/login", "/auth/registrar").permitAll()
-      .requestMatchers(GET, "/missoes/**", "/satelites/**", "/sensores/**", "/leituras/**").permitAll()
+      .requestMatchers(GET, "/satelites/**", "/sensores/**", "/leituras/**").permitAll()
       .requestMatchers(POST, "/leituras").permitAll()
-      .requestMatchers("/h2-console/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+      .requestMatchers("/h2-console/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/actuator/health").permitAll()
       .anyRequest().authenticated()
   )
   .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
@@ -386,7 +386,7 @@ http
 | `csrf.disable()`                 | API REST stateless — não usa cookies de sessão, CSRF não se aplica          |
 | `STATELESS`                      | Sem `HttpSession` — cada requisição é autenticada pelo JWT, sem estado no servidor |
 | `frameOptions.sameOrigin()`      | Permite que o H2 Console (que usa `<iframe>`) funcione no browser           |
-| `requestMatchers(GET, ...)`      | GETs são públicos; POSTs/PUTs/DELETEs de entidades exigem autenticação      |
+| `requestMatchers(GET, ...)`      | GETs de satélites, sensores e leituras são públicos. **`GET /missoes/**` NÃO é público** — depende do operador logado, então exige token. POST/PUT/DELETE de entidades exigem autenticação |
 | `requestMatchers(POST, "/leituras")` | O ESP32 (IoT) posta leituras sem token JWT — endpoint obrigatoriamente público |
 | `anyRequest().authenticated()`   | Tudo que não foi explicitamente liberado exige token válido                 |
 
@@ -446,7 +446,7 @@ HTTP:     200 OK
 2. authenticationManager.authenticate(authToken)
      → DaoAuthenticationProvider.loadUserByUsername(login)
      → verifica BCrypt(senha) contra operador.senha
-     → lança BadCredentialsException se inválido (Spring retorna 401)
+     → lança BadCredentialsException se inválido → GlobalExceptionHandler retorna 401 "Credenciais inválidas"
 3. auth.getPrincipal() → cast para Operador
 4. tokenService.gerarToken(operador) → JWT assinado
 5. ResponseEntity.ok(new TokenResponse(token))
@@ -494,7 +494,7 @@ Todos os handlers do `GlobalExceptionHandler` retornam esse record. Exemplo de r
 {
   "timestamp": "2026-06-02T14:23:07.412",
   "status": 400,
-  "error": "Login já existe: joao.silva",
+  "error": "Login já está em uso",
   "path": "/auth/registrar"
 }
 ```
@@ -523,18 +523,30 @@ public class GlobalExceptionHandler { ... }
 
 `@RestControllerAdvice` intercepta exceções de todos os controllers da aplicação antes que o Spring gere uma resposta de erro padrão.
 
-| Handler                                   | Exceção capturada                  | HTTP | Campo `error`                              |
-|-------------------------------------------|------------------------------------|:----:|--------------------------------------------|
-| `handleEntityNotFound`                    | `EntityNotFoundException`          | 404  | Mensagem da exceção                        |
-| `handleAcessoNegado`                      | `AcessoNegadoException`            | 403  | Mensagem da exceção                        |
-| `handleValidation`                        | `MethodArgumentNotValidException`  | 400  | `"Campos inválidos: campo1, campo2"`        |
-| `handleIllegalArgument`                   | `IllegalArgumentException`         | 400  | Mensagem da exceção                        |
-| `handleGeneric`                           | `Exception`                        | 500  | `"Erro interno do servidor"`               |
+| Handler                  | Exceção capturada                  | HTTP | Campo `error`                                    |
+|--------------------------|------------------------------------|:----:|--------------------------------------------------|
+| `handleEntityNotFound`   | `EntityNotFoundException`          | 404  | Mensagem da exceção                              |
+| `handleAcessoNegado`     | `AcessoNegadoException`            | 403  | Mensagem da exceção                              |
+| `handleSenhaMissaoInvalida` | `SenhaMissaoInvalidaException`  | 401  | Mensagem da exceção                              |
+| `handleOperadorJaMembro` | `OperadorJaMembroException`        | 409  | Mensagem da exceção                              |
+| `handleDonoUnico`        | `DonoUnicoException`               | 400  | Mensagem da exceção                              |
+| `handleValidation`       | `MethodArgumentNotValidException`  | 400  | `"campo: mensagem; campo: mensagem"`             |
+| `handleNotReadable`      | `HttpMessageNotReadableException`  | 400  | `"Corpo da requisição inválido ou mal formatado"` |
+| `handleIllegalArgument`  | `IllegalArgumentException`         | 400  | Mensagem da exceção                              |
+| `handleAccessDenied`     | `AccessDeniedException`            | 403  | `"Acesso negado"`                                |
+| `handleAuthentication`   | `AuthenticationException`          | 401  | `"Credenciais inválidas"`                        |
+| `handleGeneric`          | `Exception`                        | 500  | `"Erro interno no servidor"`                     |
 
 O handler `handleGeneric` é o fallback final — captura qualquer exceção não tratada pelos handlers mais específicos. A mensagem genérica é intencional para não vazar detalhes de implementação ao cliente.
 
 **Sobre `handleValidation`:**  
-O Spring lança `MethodArgumentNotValidException` quando `@Valid` falha. O handler extrai os nomes dos campos com erro via `getBindingResult().getFieldErrors()` e os lista na mensagem separados por vírgula.
+O Spring lança `MethodArgumentNotValidException` quando `@Valid` falha. O handler extrai cada campo com erro via `getBindingResult().getFieldErrors()` e os concatena como `"campo: mensagem"` separados por `; `.
+
+**Sobre `handleNotReadable`:**  
+Captura corpo JSON malformado ou valor de enum inválido (ex.: `tipo` de sensor desconhecido) — antes esses casos caíam no `handleGeneric` e retornavam 500.
+
+**Sobre `handleAuthentication`:**  
+Captura falhas de login (`BadCredentialsException`, usuário inexistente) com resposta idêntica `401 "Credenciais inválidas"` — não permite distinguir "usuário não existe" de "senha errada" (anti-enumeração).
 
 ---
 
@@ -595,7 +607,7 @@ sequenceDiagram
     OS->>DB: findByLogin(login)
     alt login já existe
         OS-->>AC: IllegalArgumentException
-        AC-->>C: 400 Bad Request { "Login já existe: joao.silva" }
+        AC-->>C: 400 Bad Request { "Login já está em uso" }
     end
     OS->>PE: encode(senha)
     PE-->>OS: "$2a$10$..."
@@ -643,12 +655,12 @@ sequenceDiagram
 }
 ```
 
-**Resposta 401** (credenciais erradas — gerado pelo Spring Security, não pelo handler):
+**Resposta 401** (credenciais erradas — tratada pelo `GlobalExceptionHandler` via `handleAuthentication`):
 ```json
 {
   "timestamp": "2026-06-02T14:23:07.412",
   "status": 401,
-  "error": "Unauthorized",
+  "error": "Credenciais inválidas",
   "path": "/auth/login"
 }
 ```
@@ -678,7 +690,7 @@ sequenceDiagram
 {
   "timestamp": "2026-06-02T14:23:07.412",
   "status": 400,
-  "error": "Login já existe: joao.silva",
+  "error": "Login já está em uso",
   "path": "/auth/registrar"
 }
 ```
@@ -695,15 +707,17 @@ Configuradas em `SecurityConfig.securityFilterChain` com `.permitAll()`:
 |:-----------:|------------------------|-----------------------------------------------------|
 | `POST`      | `/auth/login`          | Endpoint de autenticação — precisa ser público      |
 | `POST`      | `/auth/registrar`      | Cadastro — precisa ser público                      |
-| `GET`       | `/missoes/**`          | Leitura pública; restrições por role via `@PreAuthorize` nos controllers |
 | `GET`       | `/satelites/**`        | Leitura pública                                     |
 | `GET`       | `/sensores/**`         | Leitura pública                                     |
 | `GET`       | `/leituras/**`         | Leitura pública                                     |
 | `POST`      | `/leituras`            | ESP32 (IoT) posta leituras sem gerenciar tokens     |
-| qualquer    | `/h2-console/**`       | Console H2 — apenas desenvolvimento local          |
+| `GET`       | `/actuator/health`     | Health check do container                          |
+| qualquer    | `/h2-console/**`       | Console H2 — apenas desenvolvimento local (desabilitado em prod) |
 | qualquer    | `/swagger-ui/**`       | Documentação interativa                             |
 | qualquer    | `/swagger-ui.html`     | Redirect do Springdoc                               |
 | qualquer    | `/v3/api-docs/**`      | Schema OpenAPI                                      |
+
+> **`GET /missoes/**` NÃO é público:** diferentemente dos outros módulos, os GETs de missões dependem do operador logado (`@AuthenticationPrincipal`) para filtrar/validar o vínculo, então exigem token.
 
 ### Rotas protegidas
 
@@ -711,6 +725,7 @@ Tudo que não está na lista acima exige autenticação (`anyRequest().authentic
 
 | Método      | Rota                          | Exige               |
 |:-----------:|-------------------------------|---------------------|
+| `GET`       | `/missoes/**`                 | Token válido        |
 | `POST`      | `/missoes`                    | Token válido        |
 | `PUT`       | `/missoes/{id}`               | Token + role DONO   |
 | `DELETE`    | `/satelites/{id}`             | Token + role DONO   |
@@ -723,25 +738,31 @@ As verificações de role (DONO, SUPERVISOR, MEMBRO) são implementadas com `@Pr
 
 ## Variáveis de ambiente
 
-| Propriedade                    | Descrição                                                                   |
-|--------------------------------|-----------------------------------------------------------------------------|
-| `api.security.token.secret`    | Secret HMAC256 para assinar e verificar tokens JWT. Deve ser uma string longa e aleatória em produção. Nunca commitada em código. |
+| Variável de ambiente | Usada em             | Descrição                                                              |
+|----------------------|----------------------|------------------------------------------------------------------------|
+| `JWT_SECRET`         | secret HMAC256 do JWT | String longa e aleatória para assinar/verificar tokens. **Obrigatória em produção.** |
+| `ORACLE_URL`         | datasource (prod)    | URL JDBC do Oracle FIAP                                                |
+| `ORACLE_USER`        | datasource (prod)    | Usuário Oracle                                                        |
+| `ORACLE_PASSWORD`    | datasource (prod)    | Senha Oracle                                                          |
 
 ### Desenvolvimento (`application.properties`)
 
+Usa H2 em memória. O secret tem um fallback de dev (o `${JWT_SECRET:...}` resolve para o default quando a variável não está definida):
+
 ```properties
-api.security.token.secret=satmonitor-dev-secret-local-2024
+api.security.token.secret=${JWT_SECRET:satmonitor-dev-secret-local-2024}
 ```
 
-### Produção
+### Produção (`application-prod.properties`, ativar com `SPRING_PROFILES_ACTIVE=prod`)
 
-Definida como variável de ambiente no container Docker ou no `docker run`:
+Tudo vem de variável de ambiente — **sem fallback no secret** (`${JWT_SECRET}`), então a aplicação **não sobe** se a variável não estiver definida (fail-fast). O console H2 fica desabilitado e `show-sql=false`. O arquivo só contém placeholders `${...}`, portanto é seguro versioná-lo.
 
-```bash
-docker run -e api.security.token.secret=<secret-aleatório-longo> satmonitor
+```properties
+api.security.token.secret=${JWT_SECRET}
+spring.datasource.url=${ORACLE_URL}
+spring.datasource.username=${ORACLE_USER}
+spring.datasource.password=${ORACLE_PASSWORD}
 ```
-
-Ou via `application-prod.properties` injetado por CI/CD, nunca versionado.
 
 ---
 
@@ -782,10 +803,10 @@ Injeção por campo com `@Autowired` oculta dependências, dificulta testes unit
 | Status | Situação                                          | Mensagem / Comportamento                                    |
 |:------:|---------------------------------------------------|-------------------------------------------------------------|
 | 400    | Campo obrigatório ausente ou vazio no login/registro | `"Campos inválidos: login"` ou `"Campos inválidos: senha, nome"` |
-| 400    | Login já cadastrado no registro                   | `"Login já existe: <login>"`                               |
-| 401    | Credenciais incorretas no login                   | Spring Security retorna 401 antes do handler               |
+| 400    | Login já cadastrado no registro                   | `"Login já está em uso"` (mensagem genérica, sem ecoar o login) |
+| 401    | Credenciais incorretas no login                   | `GlobalExceptionHandler.handleAuthentication` → `"Credenciais inválidas"` |
 | 401    | Token ausente em rota protegida                   | Spring Security retorna 401 automaticamente                |
 | 401    | Token expirado                                    | `SecurityFilter` captura `JWTVerificationException`, loga WARN, não seta autenticação → Spring retorna 401 |
 | 401    | Token com assinatura inválida (adulterado)        | Mesmo comportamento do token expirado                      |
 | 403    | Token válido mas role insuficiente                | `AcessoNegadoException` lançada pelo service → handler retorna 403 com mensagem customizada |
-| 500    | Exceção não tratada                               | `"Erro interno do servidor"` — detalhes apenas nos logs    |
+| 500    | Exceção não tratada                               | `"Erro interno no servidor"` — detalhes apenas nos logs    |

@@ -168,7 +168,12 @@ Todos os responses de `MissaoResponse` incluem links gerados pelo método `adici
 | `atualizar`    | `PUT`    | `/missoes/{id}`                        | Apenas DONO         |
 | `deletar`      | `DELETE` | `/missoes/{id}`                        | Apenas DONO         |
 
-`MembroResponse` retorna um link `self` apontando para `GET /missoes/{id}/membros`.
+Cada `MembroResponse` retornado por `GET /missoes/{id}/membros` recebe links de ação **únicos por membro**, baseados no `operadorId`:
+
+| Rel         | Método   | URL                                          | Descrição                  |
+|-------------|----------|----------------------------------------------|----------------------------|
+| `remover`   | `DELETE` | `/missoes/{id}/membros/{operadorId}`         | Remover este membro        |
+| `promover`  | `PATCH`  | `/missoes/{id}/membros/{operadorId}`         | Alterar a role deste membro |
 
 ---
 

@@ -75,13 +75,13 @@ Os endpoints GET são **públicos** — qualquer cliente, incluindo o app Mobile
 | `minValor`      | `Double`        | `MIN(leitura.valor)` — menor valor registrado                 |
 | `maxValor`      | `Double`        | `MAX(leitura.valor)` — maior valor registrado                 |
 | `totalLeituras` | `Long`          | `COUNT(leitura.id)` — total de leituras                       |
-| `totalAlertas`  | `Long`          | `SUM(CASE WHEN status = 'ALERTA')` — leituras em alerta       |
-| `totalCriticos` | `Long`          | `SUM(CASE WHEN status = 'CRITICO')` — leituras críticas       |
+| `totalAlertas`  | `Long`          | `SUM(CASE WHEN status = StatusLeitura.ALERTA)` — leituras em alerta  |
+| `totalCriticos` | `Long`          | `SUM(CASE WHEN status = StatusLeitura.CRITICO)` — leituras críticas  |
 | `ultimaLeitura` | `LocalDateTime` | `MAX(leitura.dataHoraLeitura)` — data da leitura mais recente |
 
 Se o satélite não tiver leituras ainda, todos os campos numéricos retornam `0` e `ultimaLeitura` retorna `null`.
 
-A query navega pela hierarquia: `Satelite → sensores → leituras`, agrupando por `s.id, s.nome` para garantir uma única linha por satélite.
+A query navega pela hierarquia: `Satelite → sensores → leituras`, agrupando por `s.id, s.nome` para garantir uma única linha por satélite. A comparação de status usa **literais de enum qualificados** (`br.com.fiap.satmonitor.leitura.enums.StatusLeitura.ALERTA`) em vez de strings, forma idiomática e robusta no Hibernate.
 
 ---
 

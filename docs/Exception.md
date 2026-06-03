@@ -91,8 +91,10 @@ flowchart TD
     B -->|OperadorJaMembroException| F[409 CONFLICT\nlog.warn]
     B -->|DonoUnicoException| G[400 BAD_REQUEST\nlog.warn]
     B -->|MethodArgumentNotValidException| H[400 BAD_REQUEST\ncampos inválidos\nlog.warn]
+    B -->|HttpMessageNotReadableException| N[400 BAD_REQUEST\ncorpo inválido/enum desconhecido\nlog.warn]
     B -->|IllegalArgumentException| I[400 BAD_REQUEST\nlog.warn]
     B -->|AccessDeniedException| J[403 FORBIDDEN\nlog.warn]
+    B -->|AuthenticationException| O[401 UNAUTHORIZED\nCredenciais inválidas\nlog.warn]
     B -->|Exception genérica| K[500 INTERNAL_SERVER_ERROR\nlog.error com stack trace]
 
     C --> L[buildErro → ErroResponse]
@@ -101,8 +103,10 @@ flowchart TD
     F --> L
     G --> L
     H --> L
+    N --> L
     I --> L
     J --> L
+    O --> L
     K --> L
 
     L -->|ResponseEntity com JSON| M[Cliente]
@@ -120,9 +124,11 @@ O Spring seleciona o handler mais específico compatível com a exceção lança
 4. **`OperadorJaMembroException`** — específica de domínio, 409. Indica conflito de estado — o recurso já existe nesse relacionamento.
 5. **`DonoUnicoException`** — específica de domínio, 400. Indica requisição inválida pelo estado atual do sistema.
 6. **`MethodArgumentNotValidException`** — framework (Bean Validation), 400. Extrai todos os campos inválidos e os formata em `"campo: mensagem; campo: mensagem"`. Deve vir antes de `IllegalArgumentException` pois é mais específica.
-7. **`IllegalArgumentException`** — genérica da JDK, 400. Cobre casos de argumento inválido que não se encaixam nas exceções de domínio.
-8. **`AccessDeniedException`** — do Spring Security, 403. Lançada pelo framework quando `@PreAuthorize` nega o acesso. Retorna sempre `"Acesso negado"` (sem expor detalhes de autorização).
-9. **`Exception`** — fallback final, 500. **Deve sempre ser a última.** Captura qualquer exceção não tratada. Loga `ERROR` com stack trace completo. Nunca expõe detalhes ao cliente.
+7. **`HttpMessageNotReadableException`** — framework (Jackson), 400. Corpo JSON malformado ou valor de enum desconhecido (ex.: `tipo` de sensor inválido no `SensorRequest`). Retorna `"Corpo da requisição inválido ou mal formatado"` — sem este handler, cairia no `Exception` e retornaria 500.
+8. **`IllegalArgumentException`** — genérica da JDK, 400. Cobre casos de argumento inválido que não se encaixam nas exceções de domínio.
+9. **`AccessDeniedException`** — do Spring Security, 403. Lançada pelo framework quando `@PreAuthorize` nega o acesso. Retorna sempre `"Acesso negado"` (sem expor detalhes de autorização).
+10. **`AuthenticationException`** — do Spring Security, 401. Falha de login (`BadCredentialsException`, usuário inexistente) lançada por `authenticationManager.authenticate()` no `AuthController`. Retorna sempre `"Credenciais inválidas"` — mesma resposta para usuário inexistente e senha errada (anti-enumeração).
+11. **`Exception`** — fallback final, 500. **Deve sempre ser a última.** Captura qualquer exceção não tratada. Loga `ERROR` com stack trace completo. Nunca expõe detalhes ao cliente.
 
 > **Por que a ordem importa:** o Spring avalia os handlers de cima para baixo na classe. Se `Exception` viesse primeiro, ela capturaria todas as outras. Se `AccessDeniedException` viesse antes de `AcessoNegadoException`, o handler do Spring Security poderia engolir exceções de domínio (que estendem `RuntimeException`, não `AccessDeniedException` — neste caso não há risco, mas a convenção é: mais específico primeiro).
 

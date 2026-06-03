@@ -79,7 +79,7 @@ Com `@Inheritance(strategy = InheritanceType.JOINED)`, o JPA cria:
 | `unidade`      | `String` | NOT NULL                  | Unidade de medida (ex: "°C", "hPa", "Gy")             |
 | `limiteMin`    | `Double` | NOT NULL                  | Valor mínimo seguro — abaixo disso: CRÍTICO            |
 | `limiteMax`    | `Double` | NOT NULL                  | Valor máximo seguro — acima disso: CRÍTICO             |
-| `margemAlerta` | `Double` | NOT NULL, 0–100           | Percentual da faixa segura que define a zona ALERTA    |
+| `margemAlerta` | `Double` | NOT NULL, `@DecimalMin(0)`/`@DecimalMax(100)` | Percentual da faixa segura que define a zona ALERTA    |
 | `satelite_id`  | `Long`   | FK TB_SATELITE, NOT NULL  | Satélite ao qual o sensor pertence                     |
 | `tipo_sensor`  | `String` | Discriminador              | Valor automático: TERMICO, PRESSAO, RADIACAO, MAGNETOMETRO |
 
@@ -159,7 +159,9 @@ Todo `SensorResponse` inclui os seguintes links:
 | `RADIACAO`      | `tipoRadiacao`   | `TipoRadiacao`   | IONIZANTE, NAO_IONIZANTE         |
 | `MAGNETOMETRO`  | `eixosMedicao`   | `EixosMedicao`   | X, Y, Z, XY, XZ, YZ, XYZ        |
 
-O campo específico é retornado em `SensorResponse.detalhe` como String (ex: `"CELSIUS"`). No `PUT`, o campo `detalhe` **não é atualizado** — apenas os campos comuns são modificáveis.
+No request, `tipo` é o enum **`TipoSensor`** (`TERMICO`, `PRESSAO`, `RADIACAO`, `MAGNETOMETRO`), validado já na desserialização do JSON — valor desconhecido resulta em **400**. A desserialização é tolerante a maiúsculas/minúsculas (`spring.jackson.mapper.accept-case-insensitive-enums=true`).
+
+Na resposta, `SensorResponse.tipo` devolve o mesmo valor canônico do enum (ex.: `"TERMICO"`) — simétrico ao request. O campo específico de cada tipo vem em `SensorResponse.detalhe` como String (ex: `"CELSIUS"`). No `PUT`, nem `tipo` nem `detalhe` são atualizados — apenas os campos comuns são modificáveis.
 
 **Exemplo de request para sensor térmico:**
 ```json
@@ -188,7 +190,7 @@ O campo específico é retornado em `SensorResponse.detalhe` como String (ex: `"
 | `AcessoNegadoException`    | 403  | Operador é SUPERVISOR mas DELETE exige DONO                            |
 | `IllegalArgumentException` | 400  | `limiteMin >= limiteMax`                                               |
 | `IllegalArgumentException` | 400  | Já existe sensor com mesmo nome nesse satélite (ao criar)              |
-| `IllegalArgumentException` | 400  | `tipo` inválido (não é TERMICO, PRESSAO, RADIACAO ou MAGNETOMETRO)    |
+| `HttpMessageNotReadableException` | 400 | `tipo` inválido — não é um valor de `TipoSensor` (rejeitado na desserialização) |
 | `IllegalArgumentException` | 400  | Campo obrigatório ausente para o tipo (ex: `unidadeEscala` para TERMICO) |
 | `IllegalArgumentException` | 400  | Valor do campo específico inválido para o enum (ex: `unidadeEscala = "GRAUS"`) |
 
