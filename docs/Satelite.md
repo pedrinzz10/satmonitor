@@ -1,124 +1,239 @@
-# Satelite — Módulo de satélites
+# Satelite — Satélites e coordenadas orbitais
 
 ## Índice
 
-1. [Visão geral](#visão-geral)
-2. [Entidades](#entidades)
-3. [Endpoints](#endpoints)
-4. [Estatísticas](#estatísticas)
-5. [HATEOAS](#hateoas)
-6. [Erros](#erros)
-7. [Decisão técnica — @Embeddable](#decisão-técnica--embeddable)
+1. [O que é um satélite](#o-que-é-um-satélite)
+2. [Criar satélite](#criar-satélite)
+3. [Listar e buscar satélites](#listar-e-buscar-satélites)
+4. [Estatísticas de leituras](#estatísticas-de-leituras)
+5. [Editar e excluir satélite](#editar-e-excluir-satélite)
+6. [Links HATEOAS](#links-hateoas)
+7. [Erros](#erros)
+8. [Por que CoordenadasOrbitais é @Embeddable](#por-que-coordenadasorbitais-é-embeddable)
 
 ---
 
-## Visão geral
+## O que é um satélite
 
-Cada **Satélite** pertence a exatamente uma **Missão** e carrega sensores que geram leituras contínuas. O satélite é o nó central da hierarquia de monitoramento: `Missao → Satelite → Sensor → LeituraSensor`.
+Um **satélite** pertence a uma missão e carrega sensores que monitoram continuamente. A hierarquia é:
 
-As **coordenadas orbitais** (altitude, inclinação e longitude do nodo) são modeladas como `@Embeddable` — um objeto de valor sem identidade própria cujos campos ficam diretamente na tabela `TB_SATELITE`. Essa escolha elimina um join desnecessário e reflete que as coordenadas não fazem sentido sem o satélite que as contém.
+```
+Missao → Satelite → Sensor → LeituraSensor
+```
 
-Os endpoints GET são **públicos** — qualquer cliente, incluindo o app Mobile e sistemas externos, pode consultar satélites sem autenticação. Criar, atualizar e excluir exigem token JWT e verificação de role na missão do satélite.
+Cada satélite tem **coordenadas orbitais** (altitude, inclinação, longitude do nodo) embutidas diretamente na sua tabela — sem tabela separada.
 
----
-
-## Entidades
-
-### Satelite (`TB_SATELITE`)
-
-| Campo            | Tipo                  | Restrição                      | Descrição                                          |
-|------------------|-----------------------|--------------------------------|----------------------------------------------------|
-| `id`             | `Long`                | PK, sequence SEQ_SATELITE      | Identificador único                                |
-| `nome`           | `String`              | NOT NULL                       | Nome do satélite                                   |
-| `dataLancamento` | `LocalDate`           | NOT NULL                       | Data de lançamento                                 |
-| `coordenadas`    | `CoordenadasOrbitais` | `@Embedded`                    | Objeto de valor embutido — campos em TB_SATELITE   |
-| `missao`         | `Missao`              | FK, NOT NULL, LAZY             | Missão à qual o satélite pertence                  |
-| `sensores`       | `List<Sensor>`        | CASCADE ALL, orphanRemoval     | Sensores do satélite — carregados sob demanda      |
-
-### CoordenadasOrbitais (`@Embeddable` — sem tabela própria)
-
-| Campo           | Coluna JPA           | Tipo     | Restrição    | Descrição                                                     |
-|-----------------|----------------------|----------|--------------|---------------------------------------------------------------|
-| `altitudeKm`    | `altitude_km`        | `Double` | NOT NULL     | Altitude orbital em quilômetros                               |
-| `inclinacao`    | `inclinacao`         | `Double` | NOT NULL     | Ângulo de inclinação da órbita em graus                       |
-| `longitudeNodo` | `longitude_nodo`     | `Double` | Opcional     | Longitude do nodo ascendente em graus — pode ser null         |
-
-`CoordenadasOrbitais` é anotada com `@Embeddable` e embutida em `Satelite` com `@Embedded`. Seus três campos ficam diretamente em `TB_SATELITE` — nenhuma tabela extra é criada.
+**Endpoints GET são públicos** — qualquer cliente (Mobile, IoT, sistemas externos) consulta satélites sem token. Criar, editar e excluir exigem autenticação e role de **SUPERVISOR** ou **DONO** na missão do satélite.
 
 ---
 
-## Endpoints
+## Criar satélite
 
-| Método   | Rota                            | Auth | Role mínimo  | Descrição                                              |
-|----------|---------------------------------|:----:|:------------:|--------------------------------------------------------|
-| `POST`   | `/satelites`                    | Sim  | SUPERVISOR   | Cria novo satélite; nome deve ser único por missão     |
-| `GET`    | `/satelites`                    | Não  | —            | Lista todos os satélites paginados                     |
-| `GET`    | `/satelites/{id}`               | Não  | —            | Busca satélite por id                                  |
-| `GET`    | `/satelites/missao/{missaoId}`  | Não  | —            | Lista satélites de uma missão específica               |
-| `GET`    | `/satelites/{id}/estatisticas`  | Não  | —            | Estatísticas agregadas de leituras do satélite         |
-| `PUT`    | `/satelites/{id}`               | Sim  | SUPERVISOR   | Atualiza nome, data e coordenadas                      |
-| `DELETE` | `/satelites/{id}`               | Sim  | DONO         | Exclui satélite e todos os seus sensores e leituras    |
+Exige que o operador seja **SUPERVISOR ou DONO** na missão informada.
 
-**Observação:** a verificação de role é feita em relação à **missão do satélite**, não à missão informada no request. Para POST, a missão é definida pelo `missaoId` do request. Para PUT e DELETE, é a missão atual do satélite.
+```bash
+curl -s -X POST http://localhost:8080/satelites \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "SAT-01",
+    "dataLancamento": "2026-01-15",
+    "missaoId": 1,
+    "coordenadas": {
+      "altitudeKm": 550.0,
+      "inclinacao": 53.5,
+      "longitudeNodo": 12.3
+    }
+  }'
+```
+
+**Resposta — 201 Created:**
+```json
+{
+  "id": 1,
+  "nome": "SAT-01",
+  "dataLancamento": "2026-01-15",
+  "altitudeKm": 550.0,
+  "inclinacao": 53.5,
+  "longitudeNodo": 12.3,
+  "missaoId": 1,
+  "nomeMissao": "Missao Alpha",
+  "totalSensores": 0,
+  "_links": {
+    "self": { "href": "http://localhost:8080/satelites/1" },
+    "atualizar": { "href": "http://localhost:8080/satelites/1" },
+    "deletar": { "href": "http://localhost:8080/satelites/1" },
+    "estatisticas": { "href": "http://localhost:8080/satelites/1/estatisticas" },
+    "sensores": { "href": "http://localhost:8080/sensores/satelite/1" },
+    "missao": { "href": "http://localhost:8080/missoes/1" }
+  }
+}
+```
+
+**Campos do request:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|:-----------:|-----------|
+| `nome` | String | Sim | Deve ser único dentro da missão |
+| `dataLancamento` | LocalDate (`yyyy-MM-dd`) | Sim | — |
+| `missaoId` | Long | Sim | ID da missão dona do satélite |
+| `coordenadas.altitudeKm` | Double | Sim | Altitude orbital em km |
+| `coordenadas.inclinacao` | Double | Sim | Ângulo de inclinação em graus |
+| `coordenadas.longitudeNodo` | Double | Não | Longitude do nodo ascendente em graus |
 
 ---
 
-## Estatísticas
+## Listar e buscar satélites
 
-`GET /satelites/{id}/estatisticas` retorna um `EstatisticasResponse` com dados agregados de **todas as leituras de todos os sensores** do satélite, calculados em uma única query JPQL com constructor expression.
+Todos os GET de satélites são públicos — sem token.
 
-| Campo           | Tipo            | Como é calculado                                              |
-|-----------------|-----------------|---------------------------------------------------------------|
-| `sateliteId`    | `Long`          | ID do satélite                                                |
-| `nomeSatelite`  | `String`        | Nome do satélite                                              |
-| `mediaValor`    | `Double`        | `AVG(leitura.valor)` — média de todos os valores registrados  |
-| `minValor`      | `Double`        | `MIN(leitura.valor)` — menor valor registrado                 |
-| `maxValor`      | `Double`        | `MAX(leitura.valor)` — maior valor registrado                 |
-| `totalLeituras` | `Long`          | `COUNT(leitura.id)` — total de leituras                       |
-| `totalAlertas`  | `Long`          | `SUM(CASE WHEN status = StatusLeitura.ALERTA)` — leituras em alerta  |
-| `totalCriticos` | `Long`          | `SUM(CASE WHEN status = StatusLeitura.CRITICO)` — leituras críticas  |
-| `ultimaLeitura` | `LocalDateTime` | `MAX(leitura.dataHoraLeitura)` — data da leitura mais recente |
+### Listar todos os satélites
 
-Se o satélite não tiver leituras ainda, todos os campos numéricos retornam `0` e `ultimaLeitura` retorna `null`.
+```bash
+curl -s http://localhost:8080/satelites
+# Paginado, 10 por página, ordenado por nome
+```
 
-A query navega pela hierarquia: `Satelite → sensores → leituras`, agrupando por `s.id, s.nome` para garantir uma única linha por satélite. A comparação de status usa **literais de enum qualificados** (`br.com.fiap.satmonitor.leitura.enums.StatusLeitura.ALERTA`) em vez de strings, forma idiomática e robusta no Hibernate.
+### Buscar por id
+
+```bash
+curl -s http://localhost:8080/satelites/1
+```
+
+### Listar satélites de uma missão
+
+```bash
+curl -s http://localhost:8080/satelites/missao/1
+# Retorna 404 se a missão não existir
+```
+
+**Resposta paginada:**
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "nome": "SAT-01",
+      "altitudeKm": 550.0,
+      "missaoId": 1,
+      "nomeMissao": "Missao Alpha",
+      "totalSensores": 4,
+      ...
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
 ---
 
-## HATEOAS
+## Estatísticas de leituras
 
-Todo `SateliteResponse` inclui os seguintes links, independente do role do requisitante:
+Agrega todas as leituras de todos os sensores do satélite em uma única consulta.
 
-| Rel             | Método   | URL                                    | Descrição                                   |
-|-----------------|----------|----------------------------------------|---------------------------------------------|
-| `self`          | `GET`    | `/satelites/{id}`                      | O próprio satélite                          |
-| `atualizar`     | `PUT`    | `/satelites/{id}`                      | Editar o satélite                           |
-| `deletar`       | `DELETE` | `/satelites/{id}`                      | Excluir o satélite                          |
-| `estatisticas`  | `GET`    | `/satelites/{id}/estatisticas`         | Estatísticas agregadas                      |
-| `sensores`      | `GET`    | `/sensores/satelite/{id}`              | Sensores do satélite                        |
-| `missao`        | `GET`    | `/missoes/{missaoId}`                  | Missão à qual o satélite pertence           |
+```bash
+curl -s http://localhost:8080/satelites/1/estatisticas
+```
 
-Os links `atualizar` e `deletar` são sempre incluídos no response; a verificação de autorização ocorre no service quando o cliente efetivamente chama esses endpoints.
+**Resposta — satélite com leituras:**
+```json
+{
+  "sateliteId": 1,
+  "nomeSatelite": "SAT-01",
+  "mediaValor": 42.5,
+  "minValor": -50.0,
+  "maxValor": 150.0,
+  "totalLeituras": 127,
+  "totalAlertas": 23,
+  "totalCriticos": 8,
+  "ultimaLeitura": "2026-06-01T14:32:07.412"
+}
+```
+
+**Resposta — satélite sem leituras ainda:**
+```json
+{
+  "sateliteId": 1,
+  "nomeSatelite": "SAT-01",
+  "mediaValor": 0,
+  "minValor": 0,
+  "maxValor": 0,
+  "totalLeituras": 0,
+  "totalAlertas": 0,
+  "totalCriticos": 0,
+  "ultimaLeitura": null
+}
+```
+
+---
+
+## Editar e excluir satélite
+
+### Editar (SUPERVISOR ou DONO)
+
+```bash
+curl -s -X PUT http://localhost:8080/satelites/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "SAT-01",
+    "dataLancamento": "2026-02-01",
+    "missaoId": 1,
+    "coordenadas": {
+      "altitudeKm": 600.0,
+      "inclinacao": 55.0,
+      "longitudeNodo": 15.0
+    }
+  }'
+```
+
+A verificação de role é feita pela **missão atual do satélite**, não pelo `missaoId` do request.
+
+### Excluir (apenas DONO)
+
+```bash
+curl -s -X DELETE http://localhost:8080/satelites/1 \
+  -H "Authorization: Bearer SEU_TOKEN_DONO"
+# → 204 No Content
+```
+
+Ao excluir o satélite, todos os seus sensores e leituras são removidos em cascata.
+
+---
+
+## Links HATEOAS
+
+Todo `SateliteResponse` inclui os seguintes links:
+
+| Link | Método | Destino |
+|------|:------:|---------|
+| `self` | GET | `/satelites/{id}` |
+| `atualizar` | PUT | `/satelites/{id}` |
+| `deletar` | DELETE | `/satelites/{id}` |
+| `estatisticas` | GET | `/satelites/{id}/estatisticas` |
+| `sensores` | GET | `/sensores/satelite/{id}` |
+| `missao` | GET | `/missoes/{missaoId}` |
 
 ---
 
 ## Erros
 
-| Exceção                   | HTTP | Quando ocorre                                                         |
-|---------------------------|:----:|-----------------------------------------------------------------------|
-| `EntityNotFoundException` | 404  | Satélite não encontrado pelo id informado                             |
-| `EntityNotFoundException` | 404  | Missão informada no `missaoId` não existe                             |
-| `AcessoNegadoException`   | 403  | Operador não é membro da missão do satélite                          |
-| `AcessoNegadoException`   | 403  | Operador é MEMBRO mas a operação exige SUPERVISOR ou DONO            |
-| `AcessoNegadoException`   | 403  | Operador é SUPERVISOR mas a operação exige DONO (DELETE)             |
-| `IllegalArgumentException`| 400  | Já existe um satélite com o mesmo nome nessa missão (ao criar)       |
+| Status | Situação |
+|:------:|---------|
+| 400 | Nome duplicado na mesma missão |
+| 403 | Não é membro da missão do satélite |
+| 403 | MEMBRO tentando criar ou editar (exige SUPERVISOR) |
+| 403 | SUPERVISOR tentando excluir (exige DONO) |
+| 404 | Satélite não encontrado pelo id |
+| 404 | `missaoId` informado não existe |
 
 ---
 
-## Decisão técnica — @Embeddable
+## Por que CoordenadasOrbitais é @Embeddable
 
-`CoordenadasOrbitais` foi modelada como `@Embeddable` em vez de uma entidade separada porque é um **objeto de valor**: não tem identidade própria, não faz sentido existir sem o satélite que a contém, e seus atributos sempre mudam em conjunto.
+As coordenadas (`altitudeKm`, `inclinacao`, `longitudeNodo`) ficam **diretamente na tabela `TB_SATELITE`** — sem tabela própria, sem FK, sem join.
 
-Criar uma tabela `TB_COORDENADAS` com FK para `TB_SATELITE` adicionaria um join em **toda** consulta de satélite sem nenhum benefício — coordenadas não são compartilhadas entre satélites, nunca são consultadas isoladamente e não têm ciclo de vida independente.
+**Motivo:** coordenadas não têm identidade própria. Elas só existem como parte do satélite, nunca são consultadas isoladamente, e sempre mudam em conjunto. Criar uma tabela `TB_COORDENADAS` adicionaria um join em toda consulta de satélite sem nenhum benefício real.
 
-Com `@Embeddable`, os três campos (`altitude_km`, `inclinacao`, `longitude_nodo`) ficam diretamente em `TB_SATELITE`, tornando a query de busca de satélite mais simples e o schema mais limpo — sem tabela extra, sem FK, sem join.
+Com `@Embeddable`, a query de satélite é um simples `SELECT * FROM TB_SATELITE` sem joins extras.

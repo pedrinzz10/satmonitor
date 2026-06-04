@@ -1,423 +1,298 @@
-# SatMonitor — API REST
+# SatMonitor — API REST de Monitoramento de Satélites
 
-Sistema de monitoramento de satélites em órbita. Desenvolvido como Global Solution 2026/1 da FIAP — 2TDS.
+API Java para monitoramento de satélites em órbita. Desenvolvida como Global Solution 2026/1 da FIAP — 2TDS.
 
 ---
 
-## Visão geral
+## O que faz
 
-Uma estação terrestre monitora missões espaciais. Cada missão agrupa satélites, cada satélite tem sensores, e cada sensor gera leituras contínuas. Quando uma leitura ultrapassa os limites configurados do sensor, o sistema classifica automaticamente como Alerta ou Crítico — sem intervenção manual.
+Uma estação terrestre cria **missões espaciais**, cada missão agrupa **satélites**, cada satélite carrega **sensores**, e cada sensor gera **leituras** contínuas. Quando uma leitura ultrapassa os limites configurados, a API classifica automaticamente como **NORMAL**, **ALERTA** ou **CRÍTICO** — sem nenhuma intervenção manual.
 
-Essa lógica de status automático é a principal regra de negócio da API e percorre todas as disciplinas do projeto: do IoT (ESP32) que capta o valor, à API Java que classifica, ao banco Oracle que processa com triggers PL/SQL, ao app Mobile que exibe o alerta em vermelho.
+```
+Missao → Satelite → Sensor → LeituraSensor
+                                    ↑
+                            classificação automática:
+                            NORMAL | ALERTA | CRITICO
+```
 
 ---
 
 ## Stack
 
-- Java 21
-- Spring Boot 3.4.5
-- Gradle (Groovy)
-- Spring Data JPA + Hibernate
-- Spring Security + JWT (auth0/java-jwt 4.4.0)
-- Spring HATEOAS
-- Oracle Database (FIAP — produção) / H2 (desenvolvimento local)
-- Lombok
-- Springdoc OpenAPI 2.5.0 (Swagger UI)
-- Docker (deploy em VM Azure)
+| Tecnologia | Versão |
+|---|---|
+| Java | 21 |
+| Spring Boot | 3.4.5 |
+| Spring Security + JWT | auth0/java-jwt 4.4.0 |
+| Spring HATEOAS | — |
+| Spring Data JPA + Hibernate | — |
+| Oracle Database | Produção (FIAP) |
+| H2 | Desenvolvimento local |
+| Springdoc OpenAPI | 2.5.0 |
+| Docker | Deploy na VM Azure |
 
 ---
 
-## Arquitetura
+## Início rápido
 
-### Organização por módulo de domínio
+### 1. Subir a aplicação
 
-O projeto é organizado por módulo de domínio, não por camada técnica. Cada módulo é autocontido com suas próprias subpastas entity, dto, repository, service e controller.
-
-```
-br.com.fiap.satmonitor/
-├── config/
-├── exception/
-├── auth/
-├── missao/
-├── satelite/
-├── sensor/
-└── leitura/
+```bash
+./gradlew bootRun
+# API disponível em http://localhost:8080
+# Swagger UI em http://localhost:8080/swagger-ui.html
 ```
 
-### Por que por módulo?
+### 2. Registrar um operador
 
-Cada domínio tem complexidade própria: herança JPA no sensor, roles na missão, StatusCalculator na leitura. Separar por módulo deixa essa independência explícita e facilita navegação — tudo relacionado a sensor fica em sensor/, tudo de missão em missao/.
-
----
-
-## Modelo de dados
-
-### Hierarquia de entidades (1:N encadeados)
-
-```
-Missao → Satelite → Sensor → LeituraSensor
+```bash
+curl -s -X POST http://localhost:8080/auth/registrar \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin@sat.dev","senha":"senha123","nome":"Administrador"}'
+# → 201 Created (corpo vazio)
 ```
 
-### Entidades
+### 3. Fazer login e obter o token JWT
 
-**TB_OPERADOR**
-- id (sequence SEQ_OPERADOR)
-- login (unique, not null)
-- senha (bcrypt, not null)
-- nome (not null)
-- role (OPERADOR / ADMIN)
+```bash
+curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin@sat.dev","senha":"senha123"}'
+# → {"token":"eyJhbGciOiJIUzI1NiJ9..."}
+```
 
-**TB_MISSAO**
-- id (sequence SEQ_MISSAO)
-- nome, descricao, dataLancamento
-- status (PLANEJADA / ATIVA / ENCERRADA)
-- senhaMissao (bcrypt) — acesso via senha
-- operadorDono (FK TB_OPERADOR) — quem criou
+### 4. Criar uma missão (com token)
 
-**TB_OPERADOR_MISSAO** — relacionamento N:N com role
-- operadorId (FK), missaoId (FK) — chave composta
-- role (DONO / SUPERVISOR / MEMBRO)
-- dataEntrada
+```bash
+curl -s -X POST http://localhost:8080/missoes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{"nome":"Missao Alpha","descricao":"Missão principal","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"acesso123"}'
+# → 201 Created com o id da missão
+```
 
-**TB_SATELITE**
-- id (sequence SEQ_SATELITE)
-- nome, dataLancamento
-- altitudeKm, inclinacao, longitudeNodo (@Embedded CoordenadasOrbitais)
-- missaoId (FK TB_MISSAO)
+### 5. Registrar leitura (sem token — endpoint IoT)
 
-**TB_SENSOR** — classe base abstrata (@Inheritance JOINED)
-- id (sequence SEQ_SENSOR)
-- nome, unidade
-- limiteMin, limiteMax (Double)
-- margemAlerta (Double, %) — configura a zona de Alerta antes do Crítico
-- sateliteId (FK TB_SATELITE)
-
-Subclasses (JOINED — uma tabela por subclasse):
-- TB_SENSOR_TERMICO → unidadeEscala (CELSIUS / FAHRENHEIT / KELVIN)
-- TB_SENSOR_PRESSAO → tipoPressao (ABSOLUTA / RELATIVA)
-- TB_SENSOR_RADIACAO → tipoRadiacao (IONIZANTE / NAO_IONIZANTE)
-- TB_MAGNETOMETRO → eixosMedicao (X / Y / Z / XY / XZ / YZ / XYZ)
-
-**TB_LEITURA_SENSOR**
-- id (sequence SEQ_LEITURA)
-- valor (Double)
-- dataHoraLeitura (LocalDateTime)
-- status (NORMAL / ALERTA / CRITICO) — NUNCA vem no POST, calculado pela API
-- sensorId (FK TB_SENSOR)
+```bash
+curl -s -X POST http://localhost:8080/leituras \
+  -H "Content-Type: application/json" \
+  -d '{"valor":95.3,"sensorId":1}'
+# → 201 Created com status calculado automaticamente (ex: "CRITICO")
+```
 
 ---
 
-## Regra de negócio principal — status automático da leitura
+## Classificação automática de leituras
 
-Quando chega um POST /leituras com { valor, sensorId }, a API:
+A regra central da API. Com base nos parâmetros do sensor:
 
-1. Busca o Sensor pelo sensorId
-2. Calcula a zona de alerta com base na margemAlerta:
-    - zonaAlertaMax = limiteMax - (faixa * margemAlerta / 100)
-    - zonaAlertaMin = limiteMin + (faixa * margemAlerta / 100)
-3. Classifica o status:
-    - valor < limiteMin → CRITICO
-    - valor > limiteMax → CRITICO
-    - valor dentro da zona de alerta → ALERTA
-    - valor dentro da faixa segura → NORMAL
-4. Persiste a leitura com o status calculado
+```
+faixa         = limiteMax - limiteMin
+zonaAlertaMin = limiteMin + (faixa × margemAlerta / 100)
+zonaAlertaMax = limiteMax - (faixa × margemAlerta / 100)
+```
 
-Classe responsável: leitura/service/StatusCalculator.java
+**Exemplo — Sensor Térmico:** `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%`
 
-Exemplo: Sensor Térmico com limiteMin=0, limiteMax=80, margemAlerta=10%
-- zonaAlertaMax = 72°C, zonaAlertaMin = 8°C
-- Leitura 95°C → CRITICO (acima do limiteMax)
-- Leitura 75°C → ALERTA (entre zonaAlertaMax e limiteMax)
-- Leitura 40°C → NORMAL
+```
+|──CRITICO──|──ALERTA──|──────NORMAL──────|──ALERTA──|──CRITICO──|
+0           8         72                  80
+```
 
----
-
-## Roles de acesso às missões
-
-Tabela OperadorMissao com 3 roles:
-
-| Ação                        | DONO | SUPERVISOR | MEMBRO |
-|-----------------------------|------|------------|--------|
-| Ver missão                  | Sim  | Sim        | Sim    |
-| Editar missão               | Sim  | Não        | Não    |
-| Excluir missão              | Sim  | Não        | Não    |
-| Gerenciar membros           | Sim  | Não        | Não    |
-| Adicionar / editar satélite | Sim  | Sim        | Não    |
-| Excluir satélite            | Sim  | Não        | Não    |
-| Adicionar / editar sensor   | Sim  | Sim        | Não    |
-| Configurar limites e margem | Sim  | Sim        | Não    |
-| Excluir sensor              | Sim  | Não        | Não    |
-| Ver leituras                | Sim  | Sim        | Sim    |
-| Registrar leitura           | Sim  | Sim        | Sim    |
-| Excluir leitura             | Sim  | Sim        | Não    |
-
-Enum RoleMissao com método temPermissao(RoleMissao minimo) usando ordinal para comparação.
-
-Fluxo de entrada: qualquer operador autenticado pode entrar numa missão apresentando a senha via POST /missoes/{id}/entrar. Role inicial = MEMBRO. O DONO promove depois se necessário.
+| Leitura | Status |
+|---------|--------|
+| 95°C | CRITICO (> limiteMax) |
+| 75°C | ALERTA (entre 72 e 80) |
+| 40°C | NORMAL (entre 8 e 72) |
+| 5°C | ALERTA (entre 0 e 8) |
+| -5°C | CRITICO (< limiteMin) |
 
 ---
 
-## Autenticação e autorização
+## Autenticação
 
-- JWT via auth0/java-jwt. Token válido por 8 horas. Issuer: "satmonitor"
-- Secret via variável de ambiente: api.security.token.secret
-- Senha sempre em BCrypt — nunca texto puro
-- Rotas públicas: GET em satélites, sensores e leituras, POST /leituras (IoT), POST /auth/login, POST /auth/registrar
-- Rotas protegidas: todas as rotas de /missoes (inclusive GET, pois dependem do operador logado) e POST/PUT/DELETE em satelites, sensores. Rotas de membros.
-- POST /leituras é público porque o ESP32 (IoT) não gerencia tokens JWT
+JWT com assinatura HMAC256, válido por **8 horas**. Enviar em toda requisição protegida:
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+**Rotas públicas (sem token):**
+- `POST /auth/login` e `POST /auth/registrar`
+- Todos os `GET /satelites/**`, `GET /sensores/**`, `GET /leituras/**`
+- `POST /leituras` — ESP32 (IoT) envia leituras sem token
+- `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`
+
+**Atenção:** `GET /missoes/**` exige token, pois retorna apenas missões onde o operador logado é membro.
 
 ---
 
-## Endpoints
+## Roles de missão
+
+Cada operador tem uma role específica em cada missão:
+
+| Ação | DONO | SUPERVISOR | MEMBRO |
+|------|:----:|:----------:|:------:|
+| Ver missão / membros / leituras | ✓ | ✓ | ✓ |
+| Registrar leitura | ✓ | ✓ | ✓ |
+| Criar / editar satélite e sensor | ✓ | ✓ | — |
+| Excluir leitura | ✓ | ✓ | — |
+| Editar missão | ✓ | — | — |
+| Excluir satélite, sensor, missão | ✓ | — | — |
+| Gerenciar membros | ✓ | — | — |
+
+O criador da missão começa como **DONO**. Novos membros entram com a **senha da missão** via `POST /missoes/{id}/entrar` e começam como **MEMBRO**.
+
+---
+
+## Todos os endpoints
 
 ### Auth
-| Método | Rota              | Auth | Descrição                        |
-|--------|-------------------|------|----------------------------------|
-| POST   | /auth/registrar   | Não  | Registra novo operador           |
-| POST   | /auth/login       | Não  | Retorna token JWT                |
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| POST | `/auth/registrar` | — | Cria novo operador |
+| POST | `/auth/login` | — | Retorna token JWT |
 
 ### Missões
-| Método | Rota                              | Auth | Role mínimo |
-|--------|-----------------------------------|------|-------------|
-| GET    | /missoes                          | Sim  | MEMBRO      |
-| GET    | /missoes/{id}                     | Sim  | MEMBRO      |
-| POST   | /missoes                          | Sim  | —           |
-| PUT    | /missoes/{id}                     | Sim  | DONO        |
-| DELETE | /missoes/{id}                     | Sim  | DONO        |
-| POST   | /missoes/{id}/entrar              | Sim  | —           |
-| POST   | /missoes/{id}/sair                | Sim  | MEMBRO      |
-| GET    | /missoes/{id}/membros             | Sim  | MEMBRO      |
-| DELETE | /missoes/{id}/membros/{opId}      | Sim  | DONO        |
-| PATCH  | /missoes/{id}/membros/{opId}      | Sim  | DONO        |
+| Método | Rota | Auth | Role |
+|--------|------|:----:|:----:|
+| POST | `/missoes` | ✓ | — |
+| GET | `/missoes` | ✓ | MEMBRO |
+| GET | `/missoes/{id}` | ✓ | MEMBRO |
+| PUT | `/missoes/{id}` | ✓ | DONO |
+| DELETE | `/missoes/{id}` | ✓ | DONO |
+| POST | `/missoes/{id}/entrar` | ✓ | — |
+| POST | `/missoes/{id}/sair` | ✓ | MEMBRO |
+| GET | `/missoes/{id}/membros` | ✓ | MEMBRO |
+| DELETE | `/missoes/{id}/membros/{opId}` | ✓ | DONO |
+| PATCH | `/missoes/{id}/membros/{opId}?novoRole=X` | ✓ | DONO |
 
 ### Satélites
-| Método | Rota                          | Auth | Role mínimo |
-|--------|-------------------------------|------|-------------|
-| GET    | /satelites                    | Não  | —           |
-| GET    | /satelites/{id}               | Não  | —           |
-| GET    | /satelites/missao/{missaoId}  | Não  | —           |
-| GET    | /satelites/{id}/estatisticas  | Não  | —           |
-| POST   | /satelites                    | Sim  | SUPERVISOR  |
-| PUT    | /satelites/{id}               | Sim  | SUPERVISOR  |
-| DELETE | /satelites/{id}               | Sim  | DONO        |
+| Método | Rota | Auth | Role |
+|--------|------|:----:|:----:|
+| POST | `/satelites` | ✓ | SUPERVISOR |
+| GET | `/satelites` | — | — |
+| GET | `/satelites/{id}` | — | — |
+| GET | `/satelites/missao/{missaoId}` | — | — |
+| GET | `/satelites/{id}/estatisticas` | — | — |
+| PUT | `/satelites/{id}` | ✓ | SUPERVISOR |
+| DELETE | `/satelites/{id}` | ✓ | DONO |
 
 ### Sensores
-| Método | Rota                            | Auth | Role mínimo |
-|--------|---------------------------------|------|-------------|
-| GET    | /sensores                       | Não  | —           |
-| GET    | /sensores/{id}                  | Não  | —           |
-| GET    | /sensores/satelite/{sateliteId} | Não  | —           |
-| POST   | /sensores                       | Sim  | SUPERVISOR  |
-| PUT    | /sensores/{id}                  | Sim  | SUPERVISOR  |
-| DELETE | /sensores/{id}                  | Sim  | DONO        |
+| Método | Rota | Auth | Role |
+|--------|------|:----:|:----:|
+| POST | `/sensores` | ✓ | SUPERVISOR |
+| GET | `/sensores` | — | — |
+| GET | `/sensores/{id}` | — | — |
+| GET | `/sensores/satelite/{sateliteId}` | — | — |
+| PUT | `/sensores/{id}` | ✓ | SUPERVISOR |
+| DELETE | `/sensores/{id}` | ✓ | DONO |
 
 ### Leituras
-| Método | Rota                              | Auth | Role mínimo |
-|--------|-----------------------------------|------|-------------|
-| GET    | /leituras                         | Não  | —           |
-| GET    | /leituras/{id}                    | Não  | —           |
-| GET    | /leituras/sensor/{sensorId}       | Não  | —           |
-| POST   | /leituras                         | Não  | —           |
-| DELETE | /leituras/{id}                    | Sim  | SUPERVISOR  |
+| Método | Rota | Auth | Role |
+|--------|------|:----:|:----:|
+| POST | `/leituras` | — | — |
+| GET | `/leituras` | — | — |
+| GET | `/leituras/{id}` | — | — |
+| GET | `/leituras/sensor/{sensorId}` | — | — |
+| GET | `/leituras/satelite/{sateliteId}` | — | — |
+| DELETE | `/leituras/{id}` | ✓ | SUPERVISOR |
 
 ---
 
-## Decisões técnicas
+## Tipos de sensor
 
-### Oracle — sequências em vez de IDENTITY
-Oracle não suporta GenerationType.IDENTITY. Usar sempre @SequenceGenerator com allocationSize = 1.
-
-Padrão:
-```java
-@Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_nome")
-@SequenceGenerator(name = "seq_nome", sequenceName = "SEQ_NOME", allocationSize = 1)
-private Long id;
-```
-
-### Herança em Sensor — JOINED
-Estratégia InheritanceType.JOINED: uma tabela para a classe base (TB_SENSOR) e uma tabela por subclasse com apenas os campos extras + FK. Sem colunas nulas. Mais limpo para o Oracle.
-
-### @Embeddable para CoordenadasOrbitais
-CoordenadasOrbitais (altitudeKm, inclinacao, longitudeNodo) é @Embeddable dentro de Satelite. Sem tabela nova — campos ficam na TB_SATELITE.
-
-### HATEOAS em todos os responses
-Todos os responses de entidade estendem RepresentationModel. Records não funcionam com RepresentationModel — usar classes com Lombok. O método adicionarLinks() é privado e centralizado em cada controller.
-
-### Paginação
-Usar Pageable do Spring nas listagens de missões, satélites e leituras. @PageableDefault(size = 10) nos controllers.
-
-### StatusCalculator separado
-A lógica de cálculo do status da leitura fica em leitura/service/StatusCalculator.java separado do LeituraService. Facilita testes unitários isolados.
-
-### Injeção de dependência
-Sempre via construtor com @RequiredArgsConstructor do Lombok. Nunca @Autowired em campo.
-
-### Tratamento de erros padronizado
-GlobalExceptionHandler com @RestControllerAdvice retorna sempre ErroResponse com timestamp, status, error, path.
-
-### CORS
-Liberar apenas a origem do app Mobile em produção. Configurado no SecurityConfig.
-
-### Banco de desenvolvimento
-H2 em memória com spring.jpa.hibernate.ddl-auto=create-drop para desenvolvimento local. Oracle FIAP com ddl-auto=update em produção via application-prod.properties.
+| Tipo | Campo extra | Valores |
+|------|------------|---------|
+| `TERMICO` | `unidadeEscala` | `CELSIUS`, `FAHRENHEIT`, `KELVIN` |
+| `PRESSAO` | `tipoPressao` | `ABSOLUTA`, `RELATIVA` |
+| `RADIACAO` | `tipoRadiacao` | `IONIZANTE`, `NAO_IONIZANTE` |
+| `MAGNETOMETRO` | `eixosMedicao` | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ`, `XYZ` |
 
 ---
 
-## Variáveis de ambiente (produção)
+## Formato padrão de erro
 
-| Variável                      | Descrição                              |
-|-------------------------------|----------------------------------------|
-| api.security.token.secret     | Secret para assinar tokens JWT         |
-| ORACLE_URL                    | URL JDBC do Oracle FIAP                |
-| ORACLE_USER                   | Usuário Oracle                         |
-| ORACLE_PASSWORD               | Senha Oracle                           |
+Todos os erros seguem o mesmo formato:
+
+```json
+{
+  "timestamp": "2026-06-01T14:32:07.123",
+  "status": 404,
+  "error": "Sensor não encontrado com id: 99",
+  "path": "/sensores/99"
+}
+```
+
+| Status | Situação |
+|:------:|---------|
+| 400 | Campo inválido, regra de negócio violada |
+| 401 | Token ausente/expirado ou senha da missão errada |
+| 403 | Sem permissão (role insuficiente ou não é membro) |
+| 404 | Recurso não encontrado |
+| 409 | Conflito (ex: operador já é membro da missão) |
+| 500 | Erro interno (detalhes apenas nos logs) |
 
 ---
 
-## Estrutura de pastas completa
+## Modelo de dados simplificado
 
 ```
-src/main/java/br/com/fiap/satmonitor/
-├── SatmonitorApplication.java
-├── config/
-│   ├── SecurityConfig.java
-│   ├── SwaggerConfig.java
-│   └── JacksonConfig.java
-├── exception/
-│   ├── GlobalExceptionHandler.java
-│   ├── EntityNotFoundException.java
-│   ├── AcessoNegadoException.java
-│   ├── SenhaMissaoInvalidaException.java
-│   └── ErroResponse.java
-├── auth/
-│   ├── entity/Operador.java
-│   ├── dto/LoginRequest.java
-│   ├── dto/RegistroRequest.java
-│   ├── dto/TokenResponse.java
-│   ├── repository/OperadorRepository.java
-│   ├── service/TokenService.java
-│   ├── service/OperadorService.java
-│   ├── security/SecurityFilter.java
-│   └── controller/AuthController.java
-├── missao/
-│   ├── entity/Missao.java
-│   ├── entity/OperadorMissao.java
-│   ├── enums/StatusMissao.java
-│   ├── enums/RoleMissao.java
-│   ├── dto/MissaoRequest.java
-│   ├── dto/MissaoUpdateRequest.java
-│   ├── dto/MissaoResponse.java
-│   ├── dto/EntrarMissaoRequest.java
-│   ├── dto/MembroResponse.java
-│   ├── repository/MissaoRepository.java
-│   ├── repository/OperadorMissaoRepository.java
-│   ├── service/MissaoService.java
-│   └── controller/MissaoController.java
-├── satelite/
-│   ├── entity/Satelite.java
-│   ├── entity/CoordenadasOrbitais.java
-│   ├── dto/SateliteRequest.java
-│   ├── dto/SateliteResponse.java
-│   ├── dto/EstatisticasResponse.java
-│   ├── repository/SateliteRepository.java
-│   ├── service/SateliteService.java
-│   └── controller/SateliteController.java
-├── sensor/
-│   ├── entity/Sensor.java
-│   ├── entity/SensorTermico.java
-│   ├── entity/SensorPressao.java
-│   ├── entity/SensorRadiacao.java
-│   ├── entity/Magnetometro.java
-│   ├── enums/TipoSensor.java
-│   ├── enums/UnidadeEscala.java
-│   ├── enums/TipoPressao.java
-│   ├── enums/TipoRadiacao.java
-│   ├── enums/EixosMedicao.java
-│   ├── dto/SensorRequest.java
-│   ├── dto/SensorResponse.java
-│   ├── repository/SensorRepository.java
-│   ├── service/SensorService.java
-│   └── controller/SensorController.java
-└── leitura/
-    ├── entity/LeituraSensor.java
-    ├── enums/StatusLeitura.java
-    ├── dto/LeituraRequest.java
-    ├── dto/LeituraResponse.java
-    ├── repository/LeituraRepository.java
-    ├── service/LeituraService.java
-    ├── service/StatusCalculator.java
-    └── controller/LeituraController.java
-
-src/main/resources/
-├── application.properties
-└── application-prod.properties
-
-src/test/java/br/com/fiap/satmonitor/
-├── StatusCalculatorTest.java
-├── LeituraServiceTest.java
-└── MissaoServiceTest.java
-
-docs/
-└── Auth.md   (gerado pelo prompt do módulo auth)
-
-Dockerfile
-docker-compose.yml
-.env.example
-README.md
+TB_OPERADOR
+TB_MISSAO              ← senha protegida por BCrypt
+TB_OPERADOR_MISSAO     ← junction table com role (DONO/SUPERVISOR/MEMBRO)
+TB_SATELITE            ← coordenadas embutidas via @Embeddable
+TB_SENSOR              ← base (herança JOINED)
+  TB_SENSOR_TERMICO
+  TB_SENSOR_PRESSAO
+  TB_SENSOR_RADIACAO
+  TB_MAGNETOMETRO
+TB_LEITURA_SENSOR      ← status calculado pelo servidor, nunca pelo cliente
 ```
+
+---
+
+## Documentação detalhada
+
+| Arquivo | Conteúdo |
+|---------|---------|
+| [`docs/Auth.md`](docs/Auth.md) | JWT, registro, login, filtro de segurança |
+| [`docs/Missao.md`](docs/Missao.md) | Roles, endpoints de missão, fluxos de entrada/saída |
+| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, estatísticas |
+| [`docs/Sensor.md`](docs/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
+| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, filtros |
+| [`docs/Exception.md`](docs/Exception.md) | Mapa de erros, como adicionar nova exceção |
+| [`docs/MissaoService.md`](docs/MissaoService.md) | Fluxos internos do service de missões |
+| [`docs/Testes.md`](docs/Testes.md) | Guia de testes manuais com curl |
 
 ---
 
 ## Deploy
 
-- Container Docker em VM Azure
-- Dockerfile com usuário não privilegiado e diretório de trabalho definido
-- docker-compose.yml para ambiente local (app + H2)
-- Variáveis de ambiente via -e no docker run ou arquivo .env (nunca commitado)
-- Health check via /actuator/health
+```bash
+# Build da imagem
+docker build -t satmonitor .
 
----
-
-## Integração com outras disciplinas
-
-| Disciplina      | Pessoa    | Como consome a API Java                                      |
-|-----------------|-----------|--------------------------------------------------------------|
-| Mobile          | Fabrício  | Consome todos os endpoints. Base URL = IP da VM Azure        |
-| Oracle / PL/SQL | Henrique  | Schema separado. Triggers e procedures no banco Oracle FIAP  |
-| IoT             | Miguel    | ESP32 faz POST /leituras com { valor, sensorId } sem token   |
-| DevOps          | —         | Dockeriza a API Java. Container na VM Azure                  |
-| .NET            | —         | API espelho para apresentação. Schema Oracle separado        |
-
----
-
-## Contrato do IoT
-
-O ESP32 envia para POST /leituras:
-
-```json
-{
-  "valor": 95.3,
-  "sensorId": 3
-}
+# Rodar com Oracle (produção)
+docker run -p 8080:8080 \
+  -e JWT_SECRET=seu_secret_aqui \
+  -e ORACLE_URL=jdbc:oracle:thin:@... \
+  -e ORACLE_USER=usuario \
+  -e ORACLE_PASSWORD=senha \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  satmonitor
 ```
 
-Não enviar campo "status" — calculado pela API. Endpoint público — sem token JWT.
-
-Resposta de sucesso (201):
-
-```json
-{
-  "id": 42,
-  "valor": 95.3,
-  "dataHoraLeitura": "2026-06-01T14:32:07",
-  "status": "CRITICO",
-  "sensorId": 3
-}
-```
+Health check: `GET /actuator/health`
 
 ---
 
-## Swagger
+## Integrações
 
-Disponível em /swagger-ui.html após subir a aplicação.
+| Disciplina | Integração |
+|------------|----------|
+| **Mobile** (Fabrício) | Consome todos os endpoints; base URL = IP da VM Azure |
+| **Oracle / PL/SQL** (Henrique) | Schema separado; triggers e procedures no banco |
+| **IoT** (Miguel) | ESP32 faz `POST /leituras` com `{valor, sensorId}` — sem token |
+| **DevOps** | Dockeriza a API; container na VM Azure |
+| **.NET** | API espelho para apresentação; schema Oracle separado |

@@ -1,243 +1,248 @@
-# Leitura — Módulo de leituras dos sensores
+# Leitura — Leituras dos sensores
 
 ## Índice
 
-1. [Visão geral](#visão-geral)
-2. [Regra de negócio — StatusCalculator](#regra-de-negócio--statuscalculator)
-3. [Caso especial margemAlerta=0](#caso-especial-margemalerta0)
-4. [Entidade](#entidade)
-5. [Endpoints](#endpoints)
-6. [Filtro por status](#filtro-por-status)
-7. [Contrato do IoT](#contrato-do-iot)
-8. [HATEOAS](#hateoas)
-9. [Testes](#testes)
-10. [Erros](#erros)
+1. [O que é uma leitura](#o-que-é-uma-leitura)
+2. [Registrar leitura (IoT)](#registrar-leitura-iot)
+3. [Como o status é calculado](#como-o-status-é-calculado)
+4. [Caso especial: margemAlerta=0](#caso-especial-margemalerta0)
+5. [Listar e filtrar leituras](#listar-e-filtrar-leituras)
+6. [Excluir leitura](#excluir-leitura)
+7. [Links HATEOAS](#links-hateoas)
+8. [Erros](#erros)
 
 ---
 
-## Visão geral
+## O que é uma leitura
 
-As **leituras** são os valores registrados pelos sensores dos satélites. Cada leitura pertence a um sensor e recebe automaticamente:
-- **`dataHoraLeitura`** — o instante exato de registro, definido pelo servidor (`LocalDateTime.now()`)
-- **`status`** — classificação automática (NORMAL, ALERTA ou CRÍTICO) calculada pelo `StatusCalculator`
+Uma **leitura** é um valor registrado por um sensor em um determinado instante. A API recebe apenas o `valor` e o `sensorId` — e automaticamente define:
 
-O **POST /leituras** é o único endpoint público sem autenticação de todo o módulo. Isso é intencional: o ESP32 (IoT) posta leituras continuamente sem gerenciar tokens JWT. Todos os endpoints GET também são públicos para que o Mobile possa exibir dados sem autenticação adicional.
+- **`dataHoraLeitura`** — o instante exato de recebimento (servidor, nunca o cliente)
+- **`status`** — `NORMAL`, `ALERTA` ou `CRITICO`, calculado pelo `StatusCalculator`
 
----
-
-## Regra de negócio — StatusCalculator
-
-A classe `StatusCalculator` (`leitura/service/StatusCalculator.java`) contém toda a lógica de classificação. É um `@Component` sem estado — pode ser testado de forma completamente isolada, sem Spring context.
-
-### Fórmulas
-
-```
-faixa         = limiteMax - limiteMin
-zonaAlerta    = faixa × (margemAlerta / 100)
-zonaAlertaMin = limiteMin + zonaAlerta
-zonaAlertaMax = limiteMax - zonaAlerta
-```
-
-### Decisão em cascata (ordem importa)
-
-| Condição                     | Status  | Explicação                              |
-|------------------------------|:-------:|-----------------------------------------|
-| `valor < limiteMin`          | CRÍTICO | Abaixo do mínimo absoluto               |
-| `valor > limiteMax`          | CRÍTICO | Acima do máximo absoluto                |
-| `valor < zonaAlertaMin`      | ALERTA  | Zona de pré-alerta inferior             |
-| `valor > zonaAlertaMax`      | ALERTA  | Zona de pré-alerta superior             |
-| (nenhuma das anteriores)     | NORMAL  | Dentro da faixa operacional segura      |
-
-**Fronteiras:** os limites são exclusivos para CRÍTICO e inclusivos para ALERTA:
-- `valor == limiteMin` → ALERTA (não CRÍTICO)
-- `valor == limiteMax` → ALERTA (não CRÍTICO)
-- `valor == zonaAlertaMax` → NORMAL (não ALERTA)
-
-### Diagrama da faixa (margemAlerta = 10%)
-
-```
-|--CRITICO--|--ALERTA--|--------NORMAL--------|--ALERTA--|--CRITICO--|
-0           8         72                     80
-```
-
-### Exemplo numérico
-
-Sensor Térmico: `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%`
-
-```
-faixa         = 80 - 0  = 80
-zonaAlerta    = 80 × 0.1 = 8.0
-zonaAlertaMin = 0  + 8.0 = 8.0
-zonaAlertaMax = 80 - 8.0 = 72.0
-```
-
-| Valor  | Avaliação                  | Status  |
-|--------|----------------------------|---------|
-| 95°C   | 95 > 80 (limiteMax)        | CRÍTICO |
-| 75°C   | 75 > 72 (zonaAlertaMax)    | ALERTA  |
-| 40°C   | dentro de [8.0, 72.0]      | NORMAL  |
-| 5°C    | 5 < 8 (zonaAlertaMin)      | ALERTA  |
-| -5°C   | -5 < 0 (limiteMin)         | CRÍTICO |
-| 72°C   | 72 == zonaAlertaMax        | NORMAL  |
-| 80°C   | 80 == limiteMax (ALERTA)   | ALERTA  |
-| 0°C    | 0 == limiteMin (ALERTA)    | ALERTA  |
+O `POST /leituras` é **público** (sem token) porque o ESP32 (IoT) posta leituras contínuas sem gerenciar tokens JWT.
 
 ---
 
-## Caso especial margemAlerta=0
+## Registrar leitura (IoT)
 
-Quando `margemAlerta = 0`, a zona de alerta colapsa:
-
-```
-zonaAlerta    = 0
-zonaAlertaMin = limiteMin
-zonaAlertaMax = limiteMax
-```
-
-As condições `valor < zonaAlertaMin` e `valor > zonaAlertaMax` tornam-se equivalentes às condições de CRÍTICO, que são avaliadas primeiro. O resultado é comportamento **binário**: apenas NORMAL ou CRÍTICO, sem zona intermediária de ALERTA.
-
-| Valor  | Status  | Motivo                                    |
-|--------|---------|-------------------------------------------|
-| 40.0   | NORMAL  | Dentro de [limiteMin, limiteMax]          |
-| 79.9   | NORMAL  | Dentro de [limiteMin, limiteMax]          |
-| 80.1   | CRÍTICO | 80.1 > 80 (limiteMax)                     |
-
-Esse comportamento é **intencional e documentado** — permite configurar sensores sem margem de aviso prévio.
-
----
-
-## Entidade
-
-### LeituraSensor (`TB_LEITURA_SENSOR`)
-
-| Campo             | Tipo            | Restrição                   | Descrição                                                       |
-|-------------------|-----------------|-----------------------------|-----------------------------------------------------------------|
-| `id`              | `Long`          | PK, sequence SEQ_LEITURA    | Identificador único                                             |
-| `valor`           | `Double`        | NOT NULL                    | Valor medido pelo sensor                                        |
-| `dataHoraLeitura` | `LocalDateTime` | NOT NULL                    | Instante do registro — sempre definido pelo servidor            |
-| `status`          | `StatusLeitura` | NOT NULL, STRING            | NORMAL, ALERTA ou CRÍTICO — sempre calculado pelo StatusCalculator |
-| `sensor_id`       | `Long`          | FK TB_SENSOR, NOT NULL, LAZY | Sensor que gerou a leitura                                     |
-
-**Invariantes:** `dataHoraLeitura` e `status` **nunca** são aceitos no request — são sempre definidos pelo servidor.
-
----
-
-## Endpoints
-
-| Método   | Rota                              | Auth | Role mínimo | Descrição                                            |
-|----------|-----------------------------------|:----:|:-----------:|------------------------------------------------------|
-| `POST`   | `/leituras`                       | Não  | —           | Registra leitura; status calculado automaticamente   |
-| `GET`    | `/leituras`                       | Não  | —           | Lista todas as leituras, ordenadas por data DESC     |
-| `GET`    | `/leituras/{id}`                  | Não  | —           | Busca leitura por id                                 |
-| `GET`    | `/leituras/sensor/{sensorId}`     | Não  | —           | Lista leituras de um sensor; filtro `?status=` opcional |
-| `GET`    | `/leituras/satelite/{sateliteId}` | Não  | —           | Lista leituras de todos os sensores de um satélite   |
-| `DELETE` | `/leituras/{id}`                  | Sim  | SUPERVISOR  | Exclui leitura individual                            |
-
----
-
-## Filtro por status
-
-Os endpoints `GET /leituras/sensor/{sensorId}` e `GET /leituras/satelite/{sateliteId}` aceitam o parâmetro `?status=` para filtrar por classificação.
-
-| URL de exemplo                                       | Resultado                        |
-|------------------------------------------------------|----------------------------------|
-| `GET /leituras/sensor/3`                             | Todas as leituras do sensor 3    |
-| `GET /leituras/sensor/3?status=CRITICO`              | Apenas leituras CRÍTICO          |
-| `GET /leituras/sensor/3?status=ALERTA`               | Apenas leituras ALERTA           |
-| `GET /leituras/satelite/1?status=CRITICO`            | Leituras críticas de todos os sensores do satélite 1 |
-
-O parâmetro é case-sensitive e deve corresponder exatamente a um valor do enum `StatusLeitura`: `NORMAL`, `ALERTA` ou `CRITICO`.
-
----
-
-## Contrato do IoT
-
-O ESP32 envia `POST /leituras` sem token JWT:
-
-**Request:**
-```json
-{
-  "valor": 95.3,
-  "sensorId": 3
-}
+```bash
+# Sem token — endpoint público para ESP32 e qualquer cliente IoT
+curl -s -X POST http://localhost:8080/leituras \
+  -H "Content-Type: application/json" \
+  -d '{
+    "valor": 95.3,
+    "sensorId": 1
+  }'
 ```
 
-**Não enviar:** `status`, `dataHoraLeitura` — calculados e definidos pela API.
-
-**Response 201 Created:**
+**Resposta — 201 Created:**
 ```json
 {
   "id": 42,
   "valor": 95.3,
   "dataHoraLeitura": "2026-06-01T14:32:07.412",
   "status": "CRITICO",
-  "sensorId": 3,
-  "nomeSensor": "Termômetro Principal",
+  "sensorId": 1,
+  "nomeSensor": "Termometro Principal",
   "sateliteId": 1,
   "nomeSatelite": "SAT-01",
   "_links": {
-    "self": { "href": "/leituras/42" },
-    "deletar": { "href": "/leituras/42" },
-    "sensor": { "href": "/sensores/3" },
-    "satelite": { "href": "/satelites/1" }
+    "self": { "href": "http://localhost:8080/leituras/42" },
+    "deletar": { "href": "http://localhost:8080/leituras/42" },
+    "sensor": { "href": "http://localhost:8080/sensores/1" },
+    "satelite": { "href": "http://localhost:8080/satelites/1" }
   }
 }
 ```
 
-**Response 400** (campo obrigatório ausente):
+**Campos do request:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|:-----------:|-----------|
+| `valor` | Double | Sim | Valor medido pelo sensor |
+| `sensorId` | Long | Sim | ID do sensor que originou a leitura |
+
+> **Nunca enviar:** `status` e `dataHoraLeitura` — ambos são calculados/definidos pelo servidor e ignorados se enviados.
+
+---
+
+## Como o status é calculado
+
+A classe `StatusCalculator` usa os parâmetros do sensor para classificar cada leitura:
+
+```
+faixa         = limiteMax - limiteMin
+zonaAlertaMin = limiteMin + (faixa × margemAlerta / 100)
+zonaAlertaMax = limiteMax - (faixa × margemAlerta / 100)
+```
+
+**Ordem de avaliação (importa!):**
+
+| Condição | Status |
+|----------|:------:|
+| `valor < limiteMin` | CRITICO |
+| `valor > limiteMax` | CRITICO |
+| `valor < zonaAlertaMin` | ALERTA |
+| `valor > zonaAlertaMax` | ALERTA |
+| (nenhuma acima) | NORMAL |
+
+**Exemplo — Sensor Térmico:** `limiteMin=-10`, `limiteMax=90`, `margemAlerta=5%`
+
+```
+faixa         = 90 - (-10) = 100
+zonaAlertaMin = -10 + (100 × 0.05) = -5.0
+zonaAlertaMax =  90 - (100 × 0.05) = 85.0
+
+|──CRITICO──|─ALERTA─|──────────NORMAL──────────|─ALERTA─|──CRITICO──|
+-10         -5       85                           90
+```
+
+| Valor enviado | Avaliação | Status |
+|:-------------:|-----------|:------:|
+| 150.0 | > 90 (limiteMax) | CRITICO |
+| 87.0 | entre 85 e 90 (zona de alerta superior) | ALERTA |
+| 40.0 | entre -5 e 85 (faixa normal) | NORMAL |
+| -8.0 | entre -10 e -5 (zona de alerta inferior) | ALERTA |
+| -50.0 | < -10 (limiteMin) | CRITICO |
+| -10.0 | == limiteMin → não é `<` → vai para `< zonaAlertaMin` | ALERTA |
+| 85.0 | == zonaAlertaMax → não é `>` → cai no NORMAL | NORMAL |
+
+**Fronteiras:**
+- `valor == limiteMin` → **ALERTA** (não é `< limiteMin`)
+- `valor == limiteMax` → **ALERTA** (não é `> limiteMax`)
+- `valor == zonaAlertaMax` → **NORMAL** (não é `> zonaAlertaMax`)
+
+---
+
+## Caso especial: margemAlerta=0
+
+Quando `margemAlerta = 0`, não existe zona de alerta. O sistema funciona de forma binária: ou NORMAL ou CRITICO.
+
+```
+zonaAlertaMin = limiteMin + 0 = limiteMin
+zonaAlertaMax = limiteMax - 0 = limiteMax
+
+Resultado: apenas NORMAL ou CRITICO, sem ALERTA.
+```
+
+| Valor | Status |
+|-------|:------:|
+| Dentro de [limiteMin, limiteMax] | NORMAL |
+| Fora dos limites | CRITICO |
+
+Útil para sensores onde qualquer desvio já é crítico — sem aviso prévio.
+
+---
+
+## Listar e filtrar leituras
+
+Todos os GET de leituras são públicos — sem token.
+
+### Listar todas as leituras
+
+```bash
+curl -s http://localhost:8080/leituras
+# Paginado, 20 por página, ordenado por data DESC (mais recentes primeiro)
+```
+
+### Buscar leitura por id
+
+```bash
+curl -s http://localhost:8080/leituras/42
+```
+
+**Resposta — 200 OK:**
 ```json
 {
-  "timestamp": "2026-06-01T14:32:07.412",
-  "status": 400,
-  "error": "sensorId: não deve ser nulo",
-  "path": "/leituras"
+  "id": 42,
+  "valor": 95.3,
+  "dataHoraLeitura": "2026-06-01T14:32:07.412",
+  "status": "CRITICO",
+  "sensorId": 1,
+  "nomeSensor": "Termometro Principal",
+  "sateliteId": 1,
+  "nomeSatelite": "SAT-01",
+  "_links": {
+    "self": { "href": "http://localhost:8080/leituras/42" },
+    "sensor": { "href": "http://localhost:8080/sensores/1" },
+    "satelite": { "href": "http://localhost:8080/satelites/1" }
+  }
+}
+```
+
+### Leituras de um sensor (com filtro opcional)
+
+```bash
+# Todas as leituras do sensor 1
+curl -s http://localhost:8080/leituras/sensor/1
+
+# Apenas leituras CRITICO
+curl -s "http://localhost:8080/leituras/sensor/1?status=CRITICO"
+
+# Apenas leituras ALERTA
+curl -s "http://localhost:8080/leituras/sensor/1?status=ALERTA"
+
+# Apenas leituras NORMAL
+curl -s "http://localhost:8080/leituras/sensor/1?status=NORMAL"
+```
+
+### Leituras de todos os sensores de um satélite
+
+```bash
+# Todas as leituras do satélite 1
+curl -s http://localhost:8080/leituras/satelite/1
+
+# Apenas leituras CRITICO do satélite 1
+curl -s "http://localhost:8080/leituras/satelite/1?status=CRITICO"
+```
+
+> O parâmetro `?status=` é case-sensitive: use `NORMAL`, `ALERTA` ou `CRITICO` (maiúsculas).
+
+**Resposta paginada:**
+```json
+{
+  "content": [...],
+  "totalElements": 127,
+  "totalPages": 7,
+  "number": 0,
+  "size": 20
 }
 ```
 
 ---
 
-## HATEOAS
+## Excluir leitura
 
-Todo `LeituraResponse` inclui os seguintes links:
+Exige **SUPERVISOR ou DONO** na missão do sensor.
 
-| Rel        | Método   | URL                        | Descrição                          |
-|------------|----------|----------------------------|------------------------------------|
-| `self`     | `GET`    | `/leituras/{id}`           | A própria leitura                  |
-| `deletar`  | `DELETE` | `/leituras/{id}`           | Excluir esta leitura               |
-| `sensor`   | `GET`    | `/sensores/{sensorId}`     | Sensor que gerou esta leitura      |
-| `satelite` | `GET`    | `/satelites/{sateliteId}`  | Satélite do sensor                 |
+```bash
+curl -s -X DELETE http://localhost:8080/leituras/42 \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
+# → 204 No Content
+```
 
 ---
 
-## Testes
+## Links HATEOAS
 
-`StatusCalculatorTest` testa a lógica de classificação de forma isolada — sem Spring context (`@SpringBootTest`), sem Mockito. O sensor é criado diretamente com `new SensorTermico()` e os campos são setados manualmente.
-
-**Sensor de referência:** `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%` (`zonaAlertaMin=8.0`, `zonaAlertaMax=72.0`)
-
-| Cenário | Valor | margemAlerta | Resultado esperado | Justificativa |
-|---------|------:|:------------:|:------------------:|---------------|
-| Centro da faixa | 40.0 | 10% | NORMAL | Dentro de [8.0, 72.0] |
-| Zona de alerta superior | 75.0 | 10% | ALERTA | 75 > zonaAlertaMax=72 |
-| Acima do limiteMax | 95.0 | 10% | CRÍTICO | 95 > limiteMax=80 |
-| Zona de alerta inferior | 5.0 | 10% | ALERTA | 5 < zonaAlertaMin=8 |
-| Abaixo do limiteMin | -5.0 | 10% | CRÍTICO | -5 < limiteMin=0 |
-| Exatamente na zonaAlertaMax | 72.0 | 10% | NORMAL | 72 não é > 72 (fronteira inclusiva) |
-| Exatamente no limiteMax | 80.0 | 10% | ALERTA | 80 não é > 80 → cai em > zonaAlertaMax |
-| Exatamente no limiteMin | 0.0 | 10% | ALERTA | 0 não é < 0 → cai em < zonaAlertaMin |
-| Binário — NORMAL | 40.0 | 0% | NORMAL | Sem zona de alerta |
-| Binário — CRÍTICO | 80.1 | 0% | CRÍTICO | 80.1 > limiteMax |
-| Binário — NORMAL abaixo do max | 79.9 | 0% | NORMAL | 79.9 <= limiteMax, sem ALERTA |
+| Link | Método | Destino |
+|------|:------:|---------|
+| `self` | GET | `/leituras/{id}` |
+| `deletar` | DELETE | `/leituras/{id}` |
+| `sensor` | GET | `/sensores/{sensorId}` |
+| `satelite` | GET | `/satelites/{sateliteId}` |
 
 ---
 
 ## Erros
 
-| Exceção                   | HTTP | Quando ocorre                                                          |
-|---------------------------|:----:|------------------------------------------------------------------------|
-| `EntityNotFoundException` | 404  | Leitura não encontrada pelo id                                         |
-| `EntityNotFoundException` | 404  | Sensor informado no `sensorId` não existe (POST)                       |
-| `EntityNotFoundException` | 404  | Sensor não encontrado para filtrar leituras (GET /sensor/{id})         |
-| `EntityNotFoundException` | 404  | Satélite não encontrado para filtrar leituras (GET /satelite/{id})     |
-| `AcessoNegadoException`   | 403  | Operador não é membro da missão do sensor da leitura (DELETE)          |
-| `AcessoNegadoException`   | 403  | Operador é MEMBRO — DELETE exige SUPERVISOR ou DONO                    |
+| Status | Situação |
+|:------:|---------|
+| 400 | `sensorId` ausente no request |
+| 403 | Token ausente no `DELETE` |
+| 403 | Não é membro da missão (no `DELETE`) |
+| 403 | MEMBRO tentando excluir (exige SUPERVISOR) |
+| 404 | Leitura não encontrada pelo id |
+| 404 | `sensorId` não existe |
+| 404 | Sensor ou satélite não encontrado nos filtros GET |

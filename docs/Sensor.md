@@ -1,209 +1,305 @@
-# Sensor — Módulo de sensores
+# Sensor — Sensores dos satélites
 
 ## Índice
 
-1. [Visão geral](#visão-geral)
-2. [Decisão técnica — Herança JOINED](#decisão-técnica--herança-joined)
-3. [Entidades](#entidades)
-4. [Como o status da leitura é calculado](#como-o-status-da-leitura-é-calculado)
-5. [Endpoints](#endpoints)
-6. [HATEOAS](#hateoas)
-7. [Tipos de sensor](#tipos-de-sensor)
-8. [Erros](#erros)
-9. [Restrição de tipo imutável](#restrição-de-tipo-imutável)
+1. [O que é um sensor](#o-que-é-um-sensor)
+2. [Os 4 tipos de sensor](#os-4-tipos-de-sensor)
+3. [Como o status é calculado](#como-o-status-é-calculado)
+4. [Criar sensor](#criar-sensor)
+5. [Listar e buscar sensores](#listar-e-buscar-sensores)
+6. [Editar sensor](#editar-sensor)
+7. [Excluir sensor](#excluir-sensor)
+8. [Links HATEOAS](#links-hateoas)
+9. [Erros](#erros)
+10. [Por que herança JOINED](#por-que-herança-joined)
 
 ---
 
-## Visão geral
+## O que é um sensor
 
-Os **Sensores** são os instrumentos de medição acoplados a cada satélite. Cada sensor define os limites aceitáveis de operação (`limiteMin`, `limiteMax`) e uma margem de alerta percentual (`margemAlerta`) que configura a zona de pré-alerta antes dos limites críticos serem atingidos.
+Um **sensor** é um instrumento acoplado a um satélite que gera leituras contínuas. Cada sensor define:
 
-Quando o ESP32 (IoT) registra uma leitura via `POST /leituras`, o `StatusCalculator` usa os parâmetros do sensor para classificar automaticamente o valor como **NORMAL**, **ALERTA** ou **CRÍTICO** — sem nenhuma intervenção humana.
+- **`limiteMin` / `limiteMax`** — a faixa de operação segura
+- **`margemAlerta`** — percentual (%) da faixa que antecede os limites críticos (zona de pré-alerta)
 
-Existem 4 tipos de sensor, cada um com um campo específico adicional. Todos herdam os campos comuns da classe base `Sensor` via estratégia JPA **JOINED**.
-
----
-
-## Decisão técnica — Herança JOINED
-
-### Estratégia escolhida: `InheritanceType.JOINED`
-
-Com `@Inheritance(strategy = InheritanceType.JOINED)`, o JPA cria:
-- **Uma tabela base** (`TB_SENSOR`) com todos os campos comuns e uma coluna discriminadora (`tipo_sensor`)
-- **Uma tabela por subclasse** com apenas o campo específico + FK para `TB_SENSOR`
-
-**Tabelas criadas no Oracle:**
-
-| Tabela              | Conteúdo                                              |
-|---------------------|-------------------------------------------------------|
-| `TB_SENSOR`         | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id, tipo_sensor |
-| `TB_SENSOR_TERMICO` | id (FK), unidade_escala                               |
-| `TB_SENSOR_PRESSAO` | id (FK), tipo_pressao                                 |
-| `TB_SENSOR_RADIACAO`| id (FK), tipo_radiacao                                |
-| `TB_MAGNETOMETRO`   | id (FK), eixos_medicao                                |
-
-### Por que JOINED e não SINGLE_TABLE ou TABLE_PER_CLASS?
-
-| Estratégia      | Vantagem                                 | Desvantagem                                              |
-|-----------------|------------------------------------------|----------------------------------------------------------|
-| `SINGLE_TABLE`  | Uma única tabela, sem joins              | Colunas específicas ficam nulas para outros tipos — ruim para Oracle |
-| `JOINED`        | Sem colunas nulas, schema limpo          | Um join por consulta polimórfica                         |
-| `TABLE_PER_CLASS` | Sem joins para consultas por tipo      | Consultas polimórficas usam UNION — ineficiente, sem suporte a sequence compartilhada |
-
-`JOINED` foi escolhida porque:
-- O Oracle é o banco de produção e colunas nulas em massa consomem espaço
-- Os 4 tipos são consultados polimorficamente (via `SELECT * FROM TB_SENSOR`)
-- Um único join é aceitável para uma hierarquia pequena de 4 subclasses
-- A sequence `SEQ_SENSOR` é compartilhada — não funciona com `TABLE_PER_CLASS`
+Quando o ESP32 registra uma leitura, o `StatusCalculator` usa esses parâmetros para classificar automaticamente como **NORMAL**, **ALERTA** ou **CRITICO**.
 
 ---
 
-## Entidades
+## Os 4 tipos de sensor
 
-### Hierarquia de classes e tabelas
+Cada tipo tem um campo extra obrigatório:
 
-| Classe Java      | Tabela Oracle         | Campo específico   | Valores possíveis                        |
-|------------------|-----------------------|--------------------|------------------------------------------|
-| `Sensor`         | `TB_SENSOR`           | —                  | Classe base (não instanciar diretamente) |
-| `SensorTermico`  | `TB_SENSOR_TERMICO`   | `unidade_escala`   | CELSIUS, FAHRENHEIT, KELVIN              |
-| `SensorPressao`  | `TB_SENSOR_PRESSAO`   | `tipo_pressao`     | ABSOLUTA, RELATIVA                       |
-| `SensorRadiacao` | `TB_SENSOR_RADIACAO`  | `tipo_radiacao`    | IONIZANTE, NAO_IONIZANTE                 |
-| `Magnetometro`   | `TB_MAGNETOMETRO`     | `eixos_medicao`    | X, Y, Z, XY, XZ, YZ, XYZ                |
+| Tipo | Campo no request | Valores aceitos |
+|------|:----------------:|----------------|
+| `TERMICO` | `unidadeEscala` | `CELSIUS`, `FAHRENHEIT`, `KELVIN` |
+| `PRESSAO` | `tipoPressao` | `ABSOLUTA`, `RELATIVA` |
+| `RADIACAO` | `tipoRadiacao` | `IONIZANTE`, `NAO_IONIZANTE` |
+| `MAGNETOMETRO` | `eixosMedicao` | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ`, `XYZ` |
 
-### Campos comuns — `TB_SENSOR`
+O campo específico aparece na resposta como `"detalhe"` (ex: `"detalhe": "CELSIUS"`).
 
-| Campo          | Tipo     | Restrição                 | Descrição                                              |
-|----------------|----------|---------------------------|--------------------------------------------------------|
-| `id`           | `Long`   | PK, sequence SEQ_SENSOR   | Identificador único compartilhado por todas subclasses |
-| `nome`         | `String` | NOT NULL                  | Nome do sensor                                         |
-| `unidade`      | `String` | NOT NULL                  | Unidade de medida (ex: "°C", "hPa", "Gy")             |
-| `limiteMin`    | `Double` | NOT NULL                  | Valor mínimo seguro — abaixo disso: CRÍTICO            |
-| `limiteMax`    | `Double` | NOT NULL                  | Valor máximo seguro — acima disso: CRÍTICO             |
-| `margemAlerta` | `Double` | NOT NULL, `@DecimalMin(0)`/`@DecimalMax(100)` | Percentual da faixa segura que define a zona ALERTA    |
-| `satelite_id`  | `Long`   | FK TB_SATELITE, NOT NULL  | Satélite ao qual o sensor pertence                     |
-| `tipo_sensor`  | `String` | Discriminador              | Valor automático: TERMICO, PRESSAO, RADIACAO, MAGNETOMETRO |
+> **Tipo imutável:** após a criação, o tipo não pode ser alterado. Se precisar mudar, delete o sensor e crie um novo. Ver [seção Editar](#editar-sensor).
 
 ---
 
-## Como o status da leitura é calculado
+## Como o status é calculado
 
-A lógica de classificação está em `leitura/service/StatusCalculator.java` e usa os parâmetros do sensor:
+Com base nos parâmetros do sensor:
 
 ```
 faixa         = limiteMax - limiteMin
-zonaAlertaMax = limiteMax - (faixa × margemAlerta / 100)
 zonaAlertaMin = limiteMin + (faixa × margemAlerta / 100)
+zonaAlertaMax = limiteMax - (faixa × margemAlerta / 100)
 ```
 
-| Condição                               | Status   |
-|----------------------------------------|----------|
-| `valor > limiteMax`                    | CRÍTICO  |
-| `valor < limiteMin`                    | CRÍTICO  |
-| `valor > zonaAlertaMax`                | ALERTA   |
-| `valor < zonaAlertaMin`                | ALERTA   |
-| dentro da faixa segura                 | NORMAL   |
-
-**Exemplo numérico:** Sensor Térmico com `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%`
+**Sensor Térmico de exemplo:** `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%`
 
 ```
-faixa         = 80 - 0 = 80
-zonaAlertaMax = 80 - (80 × 10/100) = 72°C
-zonaAlertaMin = 0  + (80 × 10/100) = 8°C
+zonaAlertaMin = 0  + (80 × 0.10) = 8.0
+zonaAlertaMax = 80 - (80 × 0.10) = 72.0
+
+|──CRITICO──|──ALERTA──|────NORMAL────|──ALERTA──|──CRITICO──|
+0           8         72             80
 ```
 
-| Leitura | Zona                  | Status  |
-|---------|-----------------------|---------|
-| 95°C    | Acima de limiteMax    | CRÍTICO |
-| 75°C    | Entre 72°C e 80°C     | ALERTA  |
-| 40°C    | Entre 8°C e 72°C      | NORMAL  |
-| 3°C     | Abaixo de zonaAlertaMin | ALERTA |
-| -5°C    | Abaixo de limiteMin   | CRÍTICO |
+| Leitura | Classificação |
+|---------|:-------------:|
+| 95°C (> 80) | CRITICO |
+| 75°C (entre 72 e 80) | ALERTA |
+| 40°C (entre 8 e 72) | NORMAL |
+| 5°C (entre 0 e 8) | ALERTA |
+| -5°C (< 0) | CRITICO |
+| 72°C (== zonaAlertaMax) | NORMAL (fronteira exclusiva) |
+| 80°C (== limiteMax) | ALERTA (não é > 80) |
 
 ---
 
-## Endpoints
+## Criar sensor
 
-| Método   | Rota                              | Auth | Role mínimo | Descrição                                          |
-|----------|-----------------------------------|:----:|:-----------:|----------------------------------------------------|
-| `POST`   | `/sensores`                       | Sim  | SUPERVISOR  | Cria novo sensor; nome único por satélite          |
-| `GET`    | `/sensores`                       | Não  | —           | Lista todos os sensores paginados                  |
-| `GET`    | `/sensores/{id}`                  | Não  | —           | Busca sensor por id                                |
-| `GET`    | `/sensores/satelite/{sateliteId}` | Não  | —           | Lista sensores de um satélite específico           |
-| `PUT`    | `/sensores/{id}`                  | Sim  | SUPERVISOR  | Atualiza campos comuns — tipo e detalhe imutáveis  |
-| `DELETE` | `/sensores/{id}`                  | Sim  | DONO        | Exclui sensor e todas as suas leituras (cascade)   |
+Exige **SUPERVISOR ou DONO** na missão do satélite.
 
-**Observação:** a verificação de role é feita em relação à missão do satélite ao qual o sensor pertence. O caminho de navegação é: `Sensor → Satelite → Missao`.
+### Sensor Térmico
 
----
+```bash
+curl -s -X POST http://localhost:8080/sensores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "Termometro Principal",
+    "unidade": "graus_C",
+    "limiteMin": -10.0,
+    "limiteMax": 90.0,
+    "margemAlerta": 5.0,
+    "sateliteId": 1,
+    "tipo": "TERMICO",
+    "unidadeEscala": "CELSIUS"
+  }'
+```
 
-## HATEOAS
+### Sensor de Pressão
 
-Todo `SensorResponse` inclui os seguintes links:
+```bash
+curl -s -X POST http://localhost:8080/sensores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "Barometro",
+    "unidade": "hPa",
+    "limiteMin": 950.0,
+    "limiteMax": 1050.0,
+    "margemAlerta": 5.0,
+    "sateliteId": 1,
+    "tipo": "PRESSAO",
+    "tipoPressao": "ABSOLUTA"
+  }'
+```
 
-| Rel          | Método   | URL                             | Descrição                            |
-|--------------|----------|---------------------------------|--------------------------------------|
-| `self`       | `GET`    | `/sensores/{id}`                | O próprio sensor                     |
-| `atualizar`  | `PUT`    | `/sensores/{id}`                | Editar campos comuns do sensor       |
-| `deletar`    | `DELETE` | `/sensores/{id}`                | Excluir o sensor e suas leituras     |
-| `leituras`   | `GET`    | `/leituras/sensor/{id}`         | Leituras registradas por este sensor |
-| `satelite`   | `GET`    | `/satelites/{sateliteId}`       | Satélite ao qual o sensor pertence   |
+### Sensor de Radiação
 
----
+```bash
+curl -s -X POST http://localhost:8080/sensores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "Contador Geiger",
+    "unidade": "Gy",
+    "limiteMin": 0.0,
+    "limiteMax": 5.0,
+    "margemAlerta": 20.0,
+    "sateliteId": 1,
+    "tipo": "RADIACAO",
+    "tipoRadiacao": "IONIZANTE"
+  }'
+```
 
-## Tipos de sensor
+### Magnetômetro
 
-| Tipo (`tipo`)   | Campo no request | Enum associado   | Valores possíveis                |
-|-----------------|------------------|------------------|----------------------------------|
-| `TERMICO`       | `unidadeEscala`  | `UnidadeEscala`  | CELSIUS, FAHRENHEIT, KELVIN      |
-| `PRESSAO`       | `tipoPressao`    | `TipoPressao`    | ABSOLUTA, RELATIVA               |
-| `RADIACAO`      | `tipoRadiacao`   | `TipoRadiacao`   | IONIZANTE, NAO_IONIZANTE         |
-| `MAGNETOMETRO`  | `eixosMedicao`   | `EixosMedicao`   | X, Y, Z, XY, XZ, YZ, XYZ        |
+```bash
+curl -s -X POST http://localhost:8080/sensores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "Magnetometro Tri-axial",
+    "unidade": "nT",
+    "limiteMin": -50000.0,
+    "limiteMax": 50000.0,
+    "margemAlerta": 15.0,
+    "sateliteId": 1,
+    "tipo": "MAGNETOMETRO",
+    "eixosMedicao": "XYZ"
+  }'
+```
 
-No request, `tipo` é o enum **`TipoSensor`** (`TERMICO`, `PRESSAO`, `RADIACAO`, `MAGNETOMETRO`), validado já na desserialização do JSON — valor desconhecido resulta em **400**. A desserialização é tolerante a maiúsculas/minúsculas (`spring.jackson.mapper.accept-case-insensitive-enums=true`).
-
-Na resposta, `SensorResponse.tipo` devolve o mesmo valor canônico do enum (ex.: `"TERMICO"`) — simétrico ao request. O campo específico de cada tipo vem em `SensorResponse.detalhe` como String (ex: `"CELSIUS"`). No `PUT`, nem `tipo` nem `detalhe` são atualizados — apenas os campos comuns são modificáveis.
-
-**Exemplo de request para sensor térmico:**
+**Resposta — 201 Created:**
 ```json
 {
-  "nome": "Termômetro Principal",
-  "unidade": "°C",
-  "limiteMin": 0.0,
-  "limiteMax": 80.0,
-  "margemAlerta": 10.0,
-  "sateliteId": 1,
+  "id": 1,
+  "nome": "Termometro Principal",
   "tipo": "TERMICO",
-  "unidadeEscala": "CELSIUS"
+  "unidade": "graus_C",
+  "limiteMin": -10.0,
+  "limiteMax": 90.0,
+  "margemAlerta": 5.0,
+  "sateliteId": 1,
+  "nomeSatelite": "SAT-01",
+  "detalhe": "CELSIUS",
+  "_links": {
+    "self": { "href": "http://localhost:8080/sensores/1" },
+    "atualizar": { "href": "http://localhost:8080/sensores/1" },
+    "deletar": { "href": "http://localhost:8080/sensores/1" },
+    "leituras": { "href": "http://localhost:8080/leituras/sensor/1" },
+    "satelite": { "href": "http://localhost:8080/satelites/1" }
+  }
 }
 ```
+
+**Campos do request:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|:-----------:|-----------|
+| `nome` | String | Sim | Único por satélite |
+| `unidade` | String | Sim | Unidade de medida (ex: `"graus_C"`, `"hPa"`) |
+| `limiteMin` | Double | Sim | Deve ser menor que `limiteMax` |
+| `limiteMax` | Double | Sim | — |
+| `margemAlerta` | Double | Sim | Percentual de 0 a 100 |
+| `sateliteId` | Long | Sim | — |
+| `tipo` | Enum | Sim | `TERMICO`, `PRESSAO`, `RADIACAO` ou `MAGNETOMETRO` |
+| `unidadeEscala` | Enum | Se TERMICO | `CELSIUS`, `FAHRENHEIT` ou `KELVIN` |
+| `tipoPressao` | Enum | Se PRESSAO | `ABSOLUTA` ou `RELATIVA` |
+| `tipoRadiacao` | Enum | Se RADIACAO | `IONIZANTE` ou `NAO_IONIZANTE` |
+| `eixosMedicao` | Enum | Se MAGNETOMETRO | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ` ou `XYZ` |
+
+---
+
+## Listar e buscar sensores
+
+GET de sensores é público — sem token.
+
+```bash
+# Listar todos
+curl -s http://localhost:8080/sensores
+
+# Buscar por id
+curl -s http://localhost:8080/sensores/1
+
+# Listar sensores de um satélite
+curl -s http://localhost:8080/sensores/satelite/1
+# Retorna 404 se o satélite não existir
+```
+
+---
+
+## Editar sensor
+
+Exige **SUPERVISOR ou DONO**. Apenas os campos comuns são atualizáveis:
+
+```bash
+curl -s -X PUT http://localhost:8080/sensores/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
+  -d '{
+    "nome": "Termometro Principal",
+    "unidade": "graus_C",
+    "limiteMin": -20.0,
+    "limiteMax": 100.0,
+    "margemAlerta": 10.0,
+    "sateliteId": 1,
+    "tipo": "TERMICO",
+    "unidadeEscala": "CELSIUS"
+  }'
+```
+
+**O campo `tipo` e o detalhe específico (`detalhe`) são imutáveis.** Mesmo que você envie um valor diferente no `tipo`, ele será ignorado e o valor original mantido.
+
+**Por que o tipo é imutável?** Na estratégia JOINED do JPA, cada tipo fica em uma tabela diferente. Mudar o tipo exigiria mover dados entre tabelas — operação não suportada sem deletar e recriar. Como sensores físicos raramente mudam de tipo, essa restrição é intencional.
+
+**Como mudar o tipo:** delete o sensor (`DELETE /sensores/{id}`) e crie um novo com o tipo desejado. O histórico de leituras é perdido.
+
+---
+
+## Excluir sensor
+
+Exige **DONO**. Exclui o sensor e todas as suas leituras em cascata.
+
+```bash
+curl -s -X DELETE http://localhost:8080/sensores/1 \
+  -H "Authorization: Bearer SEU_TOKEN_DONO"
+# → 204 No Content
+```
+
+---
+
+## Links HATEOAS
+
+| Link | Método | Destino |
+|------|:------:|---------|
+| `self` | GET | `/sensores/{id}` |
+| `atualizar` | PUT | `/sensores/{id}` |
+| `deletar` | DELETE | `/sensores/{id}` |
+| `leituras` | GET | `/leituras/sensor/{id}` |
+| `satelite` | GET | `/satelites/{sateliteId}` |
 
 ---
 
 ## Erros
 
-| Exceção                    | HTTP | Quando ocorre                                                          |
-|----------------------------|:----:|------------------------------------------------------------------------|
-| `EntityNotFoundException`  | 404  | Sensor não encontrado pelo id informado                                |
-| `EntityNotFoundException`  | 404  | Satélite informado no `sateliteId` não existe                          |
-| `AcessoNegadoException`    | 403  | Operador não é membro da missão do satélite do sensor                  |
-| `AcessoNegadoException`    | 403  | Operador é MEMBRO mas a operação exige SUPERVISOR ou DONO              |
-| `AcessoNegadoException`    | 403  | Operador é SUPERVISOR mas DELETE exige DONO                            |
-| `IllegalArgumentException` | 400  | `limiteMin >= limiteMax`                                               |
-| `IllegalArgumentException` | 400  | Já existe sensor com mesmo nome nesse satélite (ao criar)              |
-| `HttpMessageNotReadableException` | 400 | `tipo` inválido — não é um valor de `TipoSensor` (rejeitado na desserialização) |
-| `IllegalArgumentException` | 400  | Campo obrigatório ausente para o tipo (ex: `unidadeEscala` para TERMICO) |
-| `IllegalArgumentException` | 400  | Valor do campo específico inválido para o enum (ex: `unidadeEscala = "GRAUS"`) |
+| Status | Situação |
+|:------:|---------|
+| 400 | `limiteMin >= limiteMax` |
+| 400 | Nome duplicado no mesmo satélite |
+| 400 | Campo obrigatório do tipo ausente (ex: `unidadeEscala` para TERMICO) |
+| 400 | Valor de enum inválido (ex: `"tipo": "SONICO"`) |
+| 403 | Não é membro da missão do satélite |
+| 403 | MEMBRO tentando criar ou editar (exige SUPERVISOR) |
+| 403 | SUPERVISOR tentando excluir (exige DONO) |
+| 404 | Sensor não encontrado pelo id |
+| 404 | `sateliteId` não existe |
 
 ---
 
-## Restrição de tipo imutável
+## Por que herança JOINED
 
-O tipo de um sensor (TERMICO, PRESSAO, RADIACAO, MAGNETOMETRO) **não pode ser alterado após a criação**. O `PUT /sensores/{id}` atualiza apenas os campos comuns (`nome`, `unidade`, `limiteMin`, `limiteMax`, `margemAlerta`).
+Os 4 tipos de sensor compartilham campos comuns mas cada um tem um campo específico adicional. O JPA oferece 3 estratégias para isso:
 
-Essa restrição existe porque o tipo do sensor determina qual tabela JPA contém o registro na estratégia JOINED. Alterar o tipo exigiria mover dados entre tabelas (`TB_SENSOR_TERMICO` → `TB_SENSOR_PRESSAO`, por exemplo), operação que não é suportada pelo JPA sem deleção e reinserção manual.
+| Estratégia | Como funciona | Problema |
+|------------|--------------|---------|
+| `SINGLE_TABLE` | Uma tabela só | Colunas específicas ficam nulas para outros tipos — ruim no Oracle |
+| `JOINED` | Uma tabela base + uma por subclasse | Um join por consulta polimórfica |
+| `TABLE_PER_CLASS` | Uma tabela completa por tipo | Consultas polimórficas usam UNION — ineficiente |
 
-**Como proceder para mudar o tipo:**
-1. `DELETE /sensores/{id}` — exclui o sensor e todas as suas leituras (cascade)
-2. `POST /sensores` — cria novo sensor com o tipo desejado
+**JOINED foi escolhida porque:**
+- Oracle é o banco de produção — colunas nulas em massa desperdiçam espaço
+- Os 4 tipos são consultados juntos frequentemente (`SELECT * FROM TB_SENSOR`)
+- Um join por consulta é aceitável para apenas 4 subclasses
+- Sequence `SEQ_SENSOR` é compartilhada entre todos os tipos (não funciona com `TABLE_PER_CLASS`)
 
-Essa abordagem é intencional: sensores físicos raramente mudam de tipo. Quando ocorre, representa uma troca de hardware que justifica perder o histórico de leituras do sensor anterior.
+**Tabelas criadas:**
+
+| Tabela | Conteúdo |
+|--------|---------|
+| `TB_SENSOR` | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id, tipo_sensor |
+| `TB_SENSOR_TERMICO` | id (FK → TB_SENSOR), unidade_escala |
+| `TB_SENSOR_PRESSAO` | id (FK → TB_SENSOR), tipo_pressao |
+| `TB_SENSOR_RADIACAO` | id (FK → TB_SENSOR), tipo_radiacao |
+| `TB_MAGNETOMETRO` | id (FK → TB_SENSOR), eixos_medicao |
