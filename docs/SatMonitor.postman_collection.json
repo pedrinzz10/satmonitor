@@ -1,0 +1,1316 @@
+{
+  "info": {
+    "_postman_id": "satmonitor-api-tests",
+    "name": "SatMonitor API — Testes Completos",
+    "description": "Execute as pastas na ordem. Tokens e IDs são salvos automaticamente entre requests via scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token_dono", "value": "" },
+    { "key": "token_membro", "value": "" },
+    { "key": "token_supervisor", "value": "" },
+    { "key": "token_forasteiro", "value": "" },
+    { "key": "missao_id", "value": "" },
+    { "key": "missao_solo_id", "value": "" },
+    { "key": "id_dono", "value": "" },
+    { "key": "id_membro", "value": "" },
+    { "key": "id_supervisor", "value": "" },
+    { "key": "sat_id", "value": "" },
+    { "key": "sat_descartavel_id", "value": "" },
+    { "key": "sensor_termico_id", "value": "" },
+    { "key": "sensor_pressao_id", "value": "" },
+    { "key": "sensor_radiacao_id", "value": "" },
+    { "key": "sensor_mag_id", "value": "" },
+    { "key": "leitura_normal_id", "value": "" },
+    { "key": "leitura_alerta_id", "value": "" },
+    { "key": "leitura_critico_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "item": [
+        {
+          "name": "GET /actuator/health",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Status UP', () => pm.expect(pm.response.json().status).to.equal('UP'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator", "health"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Auth — Registro",
+      "item": [
+        {
+          "name": "Registrar dono → 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"dono@sat.dev\",\n  \"senha\": \"senha123\",\n  \"nome\": \"Operador Dono\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        },
+        {
+          "name": "Registrar membro → 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"membro@sat.dev\",\n  \"senha\": \"senha123\",\n  \"nome\": \"Operador Membro\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        },
+        {
+          "name": "Registrar supervisor → 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"supervisor@sat.dev\",\n  \"senha\": \"senha123\",\n  \"nome\": \"Operador Supervisor\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        },
+        {
+          "name": "Registrar forasteiro → 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"forasteiro@sat.dev\",\n  \"senha\": \"senha123\",\n  \"nome\": \"Operador Forasteiro\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        },
+        {
+          "name": "Login duplicado → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400', () => pm.response.to.have.status(400));",
+            "pm.test('Erro correto', () => pm.expect(pm.response.json().error).to.include('Login já está em uso'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"dono@sat.dev\",\n  \"senha\": \"abc\",\n  \"nome\": \"Dup\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        },
+        {
+          "name": "Login em branco → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"\",\n  \"senha\": \"abc\",\n  \"nome\": \"Vazio\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/registrar", "host": ["{{baseUrl}}"], "path": ["auth", "registrar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Auth — Login e Tokens",
+      "item": [
+        {
+          "name": "Login dono → salva token_dono",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "const token = pm.response.json().token;",
+            "pm.test('Token obtido', () => pm.expect(token).to.be.a('string').and.not.empty);",
+            "pm.collectionVariables.set('token_dono', token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"dono@sat.dev\",\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login membro → salva token_membro",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('token_membro', pm.response.json().token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"membro@sat.dev\",\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login supervisor → salva token_supervisor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('token_supervisor', pm.response.json().token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"supervisor@sat.dev\",\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login forasteiro → salva token_forasteiro",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('token_forasteiro', pm.response.json().token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"login\": \"forasteiro@sat.dev\",\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Missões — CRUD",
+      "item": [
+        {
+          "name": "Criar missão (dono) → 201 | salva missao_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('roleDoOperador = DONO', () => pm.expect(json.roleDoOperador).to.equal('DONO'));",
+            "pm.test('HATEOAS presente', () => pm.expect(json).to.have.property('_links'));",
+            "pm.collectionVariables.set('missao_id', json.id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Missao Alpha\",\n  \"descricao\": \"Missao principal de testes\",\n  \"dataLancamento\": \"2026-06-01\",\n  \"status\": \"PLANEJADA\",\n  \"senhaMissao\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes", "host": ["{{baseUrl}}"], "path": ["missoes"] }
+          }
+        },
+        {
+          "name": "Listar missões (dono) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 1', () => pm.expect(pm.response.json().totalElements).to.be.at.least(1));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes", "host": ["{{baseUrl}}"], "path": ["missoes"] }
+          }
+        },
+        {
+          "name": "Buscar missão por id (dono) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Nome correto', () => pm.expect(pm.response.json().nome).to.equal('Missao Alpha'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "Forasteiro tenta ver missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_forasteiro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "Sem token tenta ver missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "Atualizar missão (DONO) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Nome atualizado', () => pm.expect(pm.response.json().nome).to.equal('Missao Alpha v2'));",
+            "pm.test('Status ATIVA', () => pm.expect(pm.response.json().status).to.equal('ATIVA'));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Missao Alpha v2\",\n  \"descricao\": \"Atualizada\",\n  \"dataLancamento\": \"2026-07-01\",\n  \"status\": \"ATIVA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "Forasteiro tenta atualizar missão → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_forasteiro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Invasao\",\n  \"descricao\": \"x\",\n  \"dataLancamento\": \"2026-07-01\",\n  \"status\": \"ATIVA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Missões — Entrar e Sair",
+      "item": [
+        {
+          "name": "Senha errada → 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 401', () => pm.response.to.have.status(401));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"errada\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "Membro entra com senha correta → 200 | role MEMBRO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Role MEMBRO', () => pm.expect(pm.response.json().roleDoOperador).to.equal('MEMBRO'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "Já é membro → 409",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 409', () => pm.response.to.have.status(409));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "Supervisor entra → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "MEMBRO tenta PUT missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Invasao\",\n  \"descricao\": \"x\",\n  \"dataLancamento\": \"2026-07-01\",\n  \"status\": \"ATIVA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "MEMBRO tenta DELETE missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "Criar missão solo → 201 | salva missao_solo_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('missao_solo_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Missao Solo\",\n  \"descricao\": \"Sem outros donos\",\n  \"dataLancamento\": \"2026-06-01\",\n  \"status\": \"PLANEJADA\",\n  \"senhaMissao\": \"senha456\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes", "host": ["{{baseUrl}}"], "path": ["missoes"] }
+          }
+        },
+        {
+          "name": "DONO único tenta sair → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_solo_id}}/sair", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_solo_id}}", "sair"] }
+          }
+        },
+        {
+          "name": "Supervisor entra na missão solo → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"senha456\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_solo_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_solo_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "Supervisor sai da missão solo → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 204', () => pm.response.to.have.status(204));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_solo_id}}/sair", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_solo_id}}", "sair"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Missões — Membros",
+      "item": [
+        {
+          "name": "Forasteiro tenta listar membros → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_forasteiro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros"] }
+          }
+        },
+        {
+          "name": "Listar membros (membro) → 200 | salva ids",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.test('3 membros', () => pm.expect(json.length).to.equal(3));",
+            "const dono = json.find(m => m.login === 'dono@sat.dev');",
+            "const membro = json.find(m => m.login === 'membro@sat.dev');",
+            "const supervisor = json.find(m => m.login === 'supervisor@sat.dev');",
+            "pm.collectionVariables.set('id_dono', dono.operadorId);",
+            "pm.collectionVariables.set('id_membro', membro.operadorId);",
+            "pm.collectionVariables.set('id_supervisor', supervisor.operadorId);"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros"] }
+          }
+        },
+        {
+          "name": "DONO tenta se remover via DELETE → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_dono}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_dono}}"] }
+          }
+        },
+        {
+          "name": "MEMBRO tenta promover → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_supervisor}}?novoRole=SUPERVISOR", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_supervisor}}"], "query": [{ "key": "novoRole", "value": "SUPERVISOR" }] }
+          }
+        },
+        {
+          "name": "DONO promove supervisor → SUPERVISOR | 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Role = SUPERVISOR', () => pm.expect(pm.response.json().role).to.equal('SUPERVISOR'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_supervisor}}?novoRole=SUPERVISOR", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_supervisor}}"], "query": [{ "key": "novoRole", "value": "SUPERVISOR" }] }
+          }
+        },
+        {
+          "name": "DONO rebaixa supervisor → MEMBRO | 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Role = MEMBRO', () => pm.expect(pm.response.json().role).to.equal('MEMBRO'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_supervisor}}?novoRole=MEMBRO", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_supervisor}}"], "query": [{ "key": "novoRole", "value": "MEMBRO" }] }
+          }
+        },
+        {
+          "name": "Re-promover supervisor → SUPERVISOR | 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Role = SUPERVISOR', () => pm.expect(pm.response.json().role).to.equal('SUPERVISOR'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_supervisor}}?novoRole=SUPERVISOR", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_supervisor}}"], "query": [{ "key": "novoRole", "value": "SUPERVISOR" }] }
+          }
+        },
+        {
+          "name": "DONO tenta alterar própria role → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_dono}}?novoRole=MEMBRO", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_dono}}"], "query": [{ "key": "novoRole", "value": "MEMBRO" }] }
+          }
+        },
+        {
+          "name": "MEMBRO tenta remover supervisor → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_supervisor}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_supervisor}}"] }
+          }
+        },
+        {
+          "name": "DONO remove membro → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 204', () => pm.response.to.have.status(204));"
+          ]}}],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/membros/{{id_membro}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "membros", "{{id_membro}}"] }
+          }
+        },
+        {
+          "name": "Membro removido tenta sair → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/sair", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "sair"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Satélites",
+      "item": [
+        {
+          "name": "Membro re-entra na missão → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"senha\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/entrar", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "entrar"] }
+          }
+        },
+        {
+          "name": "Sem token cria satélite → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5,\n    \"longitudeNodo\": 12.3\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "MEMBRO cria satélite → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5,\n    \"longitudeNodo\": 12.3\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "SUPERVISOR cria satélite → 201 | salva sat_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('Nome SAT-01', () => pm.expect(json.nome).to.equal('SAT-01'));",
+            "pm.test('altitudeKm 550.0', () => pm.expect(json.altitudeKm).to.equal(550.0));",
+            "pm.test('HATEOAS presente', () => pm.expect(json).to.have.property('_links'));",
+            "pm.collectionVariables.set('sat_id', json.id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5,\n    \"longitudeNodo\": 12.3\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "Nome duplicado → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "missaoId inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-X\",\n  \"dataLancamento\": \"2026-01-01\",\n  \"missaoId\": 99999,\n  \"coordenadas\": {\n    \"altitudeKm\": 100.0,\n    \"inclinacao\": 0.0\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "GET todos os satélites (público) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "GET satélite por id com HATEOAS → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('HATEOAS presente', () => pm.expect(pm.response.json()).to.have.property('_links'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}"] }
+          }
+        },
+        {
+          "name": "GET satélite inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites/99999", "host": ["{{baseUrl}}"], "path": ["satelites", "99999"] }
+          }
+        },
+        {
+          "name": "GET satélites da missão → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 1', () => pm.expect(pm.response.json().totalElements).to.be.at.least(1));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites/missao/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "missao", "{{missao_id}}"] }
+          }
+        },
+        {
+          "name": "GET satélites missão inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites/missao/99999", "host": ["{{baseUrl}}"], "path": ["satelites", "missao", "99999"] }
+          }
+        },
+        {
+          "name": "Estatísticas sem leituras → totalLeituras=0",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalLeituras=0', () => pm.expect(pm.response.json().totalLeituras).to.equal(0));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}/estatisticas", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}", "estatisticas"] }
+          }
+        },
+        {
+          "name": "SUPERVISOR atualiza satélite → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('altitudeKm 600.0', () => pm.expect(pm.response.json().altitudeKm).to.equal(600.0));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-02-01\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 600.0,\n    \"inclinacao\": 55.0\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}"] }
+          }
+        },
+        {
+          "name": "DONO atualiza satélite → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('altitudeKm 650.0', () => pm.expect(pm.response.json().altitudeKm).to.equal(650.0));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-03-01\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 650.0,\n    \"inclinacao\": 57.0\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}"] }
+          }
+        },
+        {
+          "name": "SUPERVISOR tenta deletar satélite → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Sensores — Criação dos 4 tipos",
+      "item": [
+        {
+          "name": "POST TERMICO → 201 | detalhe=CELSIUS | salva sensor_termico_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('detalhe=CELSIUS', () => pm.expect(json.detalhe).to.equal('CELSIUS'));",
+            "pm.test('tipo=TERMICO', () => pm.expect(json.tipo).to.equal('TERMICO'));",
+            "pm.collectionVariables.set('sensor_termico_id', json.id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Termometro\",\n  \"unidade\": \"graus_C\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 80.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "POST PRESSAO → 201 | detalhe=ABSOLUTA | salva sensor_pressao_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('detalhe=ABSOLUTA', () => pm.expect(pm.response.json().detalhe).to.equal('ABSOLUTA'));",
+            "pm.collectionVariables.set('sensor_pressao_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Barometro\",\n  \"unidade\": \"hPa\",\n  \"limiteMin\": 950.0,\n  \"limiteMax\": 1050.0,\n  \"margemAlerta\": 5.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"PRESSAO\",\n  \"tipoPressao\": \"ABSOLUTA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "POST RADIACAO → 201 | detalhe=IONIZANTE | salva sensor_radiacao_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('detalhe=IONIZANTE', () => pm.expect(pm.response.json().detalhe).to.equal('IONIZANTE'));",
+            "pm.collectionVariables.set('sensor_radiacao_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Geiger\",\n  \"unidade\": \"Gy\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 5.0,\n  \"margemAlerta\": 20.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"RADIACAO\",\n  \"tipoRadiacao\": \"IONIZANTE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "POST MAGNETOMETRO → 201 | detalhe=XYZ | salva sensor_mag_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('detalhe=XYZ', () => pm.expect(pm.response.json().detalhe).to.equal('XYZ'));",
+            "pm.collectionVariables.set('sensor_mag_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Magnetometro\",\n  \"unidade\": \"nT\",\n  \"limiteMin\": -50000.0,\n  \"limiteMax\": 50000.0,\n  \"margemAlerta\": 15.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"MAGNETOMETRO\",\n  \"eixosMedicao\": \"XYZ\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Sensores — Validações",
+      "item": [
+        {
+          "name": "limiteMin >= limiteMax → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Invalido\",\n  \"unidade\": \"X\",\n  \"limiteMin\": 100.0,\n  \"limiteMax\": 50.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "Tipo inválido (SONICO) → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Sonico\",\n  \"unidade\": \"Hz\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 100.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"SONICO\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "TERMICO sem unidadeEscala → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SemEscala\",\n  \"unidade\": \"graus_C\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 100.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "Nome duplicado no satélite → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Termometro\",\n  \"unidade\": \"K\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 80.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"KELVIN\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "sateliteId inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Orfao\",\n  \"unidade\": \"X\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 10.0,\n  \"margemAlerta\": 5.0,\n  \"sateliteId\": 99999,\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "MEMBRO cria sensor → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SensorMembro\",\n  \"unidade\": \"X\",\n  \"limiteMin\": 0.0,\n  \"limiteMax\": 100.0,\n  \"margemAlerta\": 10.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] }
+          }
+        },
+        {
+          "name": "GET todos sensores (público) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores", "host": ["{{baseUrl}}"], "path": ["sensores"] } }
+        },
+        {
+          "name": "GET sensor por id com HATEOAS → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('HATEOAS presente', () => pm.expect(pm.response.json()).to.have.property('_links'));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores/{{sensor_termico_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_termico_id}}"] } }
+        },
+        {
+          "name": "GET sensores do satélite → 200 | totalElements=4",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('4 sensores', () => pm.expect(pm.response.json().totalElements).to.equal(4));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores/satelite/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "satelite", "{{sat_id}}"] } }
+        },
+        {
+          "name": "GET sensores satélite inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores/satelite/99999", "host": ["{{baseUrl}}"], "path": ["sensores", "satelite", "99999"] } }
+        },
+        {
+          "name": "SUPERVISOR atualiza sensor → 200 | tipo imutável",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('limiteMin=-10.0', () => pm.expect(pm.response.json().limiteMin).to.equal(-10.0));",
+            "pm.test('detalhe=CELSIUS (imutável)', () => pm.expect(pm.response.json().detalhe).to.equal('CELSIUS'));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Termometro\",\n  \"unidade\": \"K\",\n  \"limiteMin\": -10.0,\n  \"limiteMax\": 90.0,\n  \"margemAlerta\": 5.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores/{{sensor_termico_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_termico_id}}"] }
+          }
+        },
+        {
+          "name": "DONO atualiza sensor → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('unidade=graus_C', () => pm.expect(pm.response.json().unidade).to.equal('graus_C'));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Termometro\",\n  \"unidade\": \"graus_C\",\n  \"limiteMin\": -10.0,\n  \"limiteMax\": 90.0,\n  \"margemAlerta\": 5.0,\n  \"sateliteId\": {{sat_id}},\n  \"tipo\": \"TERMICO\",\n  \"unidadeEscala\": \"CELSIUS\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/sensores/{{sensor_termico_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_termico_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Leituras — StatusCalculator",
+      "description": "Sensor Térmico após PUT: limiteMin=-10, limiteMax=90, margemAlerta=5%\nzonaAlertaMin=-5.0 | zonaAlertaMax=85.0",
+      "item": [
+        {
+          "name": "40.0 → NORMAL | salva leitura_normal_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('status=NORMAL', () => pm.expect(json.status).to.equal('NORMAL'));",
+            "pm.test('dataHoraLeitura preenchida', () => pm.expect(json.dataHoraLeitura).to.be.a('string').and.not.empty);",
+            "pm.test('HATEOAS presente', () => pm.expect(json).to.have.property('_links'));",
+            "pm.collectionVariables.set('leitura_normal_id', json.id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 40.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "87.0 → ALERTA superior | salva leitura_alerta_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=ALERTA', () => pm.expect(pm.response.json().status).to.equal('ALERTA'));",
+            "pm.collectionVariables.set('leitura_alerta_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 87.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "150.0 → CRITICO acima limiteMax | salva leitura_critico_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=CRITICO', () => pm.expect(pm.response.json().status).to.equal('CRITICO'));",
+            "pm.collectionVariables.set('leitura_critico_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 150.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "-50.0 → CRITICO abaixo limiteMin",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=CRITICO', () => pm.expect(pm.response.json().status).to.equal('CRITICO'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": -50.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "-8.0 → ALERTA inferior",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=ALERTA', () => pm.expect(pm.response.json().status).to.equal('ALERTA'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": -8.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "-10.0 → ALERTA (fronteira limiteMin inclusiva)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=ALERTA (não CRITICO)', () => pm.expect(pm.response.json().status).to.equal('ALERTA'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": -10.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "85.0 → NORMAL (fronteira zonaAlertaMax exclusiva)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.test('status=NORMAL (não ALERTA)', () => pm.expect(pm.response.json().status).to.equal('NORMAL'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 85.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "sensorId inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 40.0,\n  \"sensorId\": 99999\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        },
+        {
+          "name": "Sem sensorId → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 40.0\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Leituras — Consultas e Filtros",
+      "item": [
+        {
+          "name": "GET todas as leituras → 200 | totalElements >= 7",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 7', () => pm.expect(pm.response.json().totalElements).to.be.at.least(7));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] } }
+        },
+        {
+          "name": "GET leitura por id com links → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('link sensor presente', () => pm.expect(pm.response.json()._links.sensor.href).to.be.a('string'));",
+            "pm.test('link satelite presente', () => pm.expect(pm.response.json()._links.satelite.href).to.be.a('string'));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_normal_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_normal_id}}"] } }
+        },
+        {
+          "name": "GET leitura inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/99999", "host": ["{{baseUrl}}"], "path": ["leituras", "99999"] } }
+        },
+        {
+          "name": "GET leituras do sensor → 200 | totalElements >= 7",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 7', () => pm.expect(pm.response.json().totalElements).to.be.at.least(7));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/{{sensor_termico_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "{{sensor_termico_id}}"] } }
+        },
+        {
+          "name": "Filtro ?status=CRITICO → >= 2",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 2', () => pm.expect(pm.response.json().totalElements).to.be.at.least(2));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/{{sensor_termico_id}}?status=CRITICO", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "{{sensor_termico_id}}"], "query": [{ "key": "status", "value": "CRITICO" }] } }
+        },
+        {
+          "name": "Filtro ?status=ALERTA → >= 2",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 2', () => pm.expect(pm.response.json().totalElements).to.be.at.least(2));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/{{sensor_termico_id}}?status=ALERTA", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "{{sensor_termico_id}}"], "query": [{ "key": "status", "value": "ALERTA" }] } }
+        },
+        {
+          "name": "Filtro ?status=NORMAL → >= 1",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 1', () => pm.expect(pm.response.json().totalElements).to.be.at.least(1));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/{{sensor_termico_id}}?status=NORMAL", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "{{sensor_termico_id}}"], "query": [{ "key": "status", "value": "NORMAL" }] } }
+        },
+        {
+          "name": "GET leituras sensor inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/99999", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "99999"] } }
+        },
+        {
+          "name": "Sensor sem leituras → totalElements=0",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements=0', () => pm.expect(pm.response.json().totalElements).to.equal(0));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/sensor/{{sensor_pressao_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "sensor", "{{sensor_pressao_id}}"] } }
+        },
+        {
+          "name": "GET leituras do satélite → 200 | >= 7",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 7', () => pm.expect(pm.response.json().totalElements).to.be.at.least(7));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/satelite/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "satelite", "{{sat_id}}"] } }
+        },
+        {
+          "name": "GET leituras satélite + ?status=CRITICO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/satelite/{{sat_id}}?status=CRITICO", "host": ["{{baseUrl}}"], "path": ["leituras", "satelite", "{{sat_id}}"], "query": [{ "key": "status", "value": "CRITICO" }] } }
+        },
+        {
+          "name": "GET leituras satélite inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/satelite/99999", "host": ["{{baseUrl}}"], "path": ["leituras", "satelite", "99999"] } }
+        }
+      ]
+    },
+    {
+      "name": "12. Estatísticas após leituras",
+      "item": [
+        {
+          "name": "GET estatísticas com leituras → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.test('totalLeituras >= 7', () => pm.expect(json.totalLeituras).to.be.at.least(7));",
+            "pm.test('totalCriticos >= 2', () => pm.expect(json.totalCriticos).to.be.at.least(2));",
+            "pm.test('totalAlertas >= 2', () => pm.expect(json.totalAlertas).to.be.at.least(2));",
+            "pm.test('ultimaLeitura preenchida', () => pm.expect(json.ultimaLeitura).to.be.a('string').and.not.empty);",
+            "pm.test('mediaValor calculado', () => pm.expect(json.mediaValor).to.not.equal(null));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/satelites/{{sat_id}}/estatisticas", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_id}}", "estatisticas"] } }
+        }
+      ]
+    },
+    {
+      "name": "13. Leituras — Exclusão",
+      "item": [
+        {
+          "name": "Sem token → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_normal_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_normal_id}}"] } }
+        },
+        {
+          "name": "Forasteiro (não membro) → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_forasteiro}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_normal_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_normal_id}}"] } }
+        },
+        {
+          "name": "MEMBRO da missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_normal_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_normal_id}}"] } }
+        },
+        {
+          "name": "SUPERVISOR deleta leitura → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_alerta_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_alerta_id}}"] } }
+        },
+        {
+          "name": "Leitura já deletada → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_alerta_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_alerta_id}}"] } }
+        },
+        {
+          "name": "DONO deleta leitura → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/leituras/{{leitura_critico_id}}", "host": ["{{baseUrl}}"], "path": ["leituras", "{{leitura_critico_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "14. Sensores — Exclusão",
+      "item": [
+        {
+          "name": "SUPERVISOR tenta deletar sensor → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/sensores/{{sensor_mag_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_mag_id}}"] } }
+        },
+        {
+          "name": "DONO deleta sensor → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/sensores/{{sensor_radiacao_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_radiacao_id}}"] } }
+        },
+        {
+          "name": "Sensor deletado → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores/{{sensor_radiacao_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "{{sensor_radiacao_id}}"] } }
+        },
+        {
+          "name": "Satélite agora tem 3 sensores",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('3 sensores restam', () => pm.expect(pm.response.json().totalElements).to.equal(3));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/sensores/satelite/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["sensores", "satelite", "{{sat_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "15. Satélites — Exclusão",
+      "item": [
+        {
+          "name": "Criar satélite descartável → 201 | salva sat_descartavel_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('sat_descartavel_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-DESCARTAVEL\",\n  \"dataLancamento\": \"2026-01-01\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 200.0,\n    \"inclinacao\": 0.0\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
+          }
+        },
+        {
+          "name": "SUPERVISOR tenta deletar satélite → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/satelites/{{sat_descartavel_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_descartavel_id}}"] } }
+        },
+        {
+          "name": "DONO deleta satélite → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/satelites/{{sat_descartavel_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_descartavel_id}}"] } }
+        },
+        {
+          "name": "Satélite deletado → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/satelites/{{sat_descartavel_id}}", "host": ["{{baseUrl}}"], "path": ["satelites", "{{sat_descartavel_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "16. Missões — Exclusão",
+      "item": [
+        {
+          "name": "SUPERVISOR tenta deletar missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] } }
+        },
+        {
+          "name": "MEMBRO tenta deletar missão → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}"] } }
+        },
+        {
+          "name": "MEMBRO sai voluntariamente → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_membro}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/missoes/{{missao_id}}/sair", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_id}}", "sair"] }
+          }
+        },
+        {
+          "name": "DONO deleta missão Solo → 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"]}}],
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/missoes/{{missao_solo_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_solo_id}}"] } }
+        },
+        {
+          "name": "Missão deletada → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"]}}],
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] }, "url": { "raw": "{{baseUrl}}/missoes/{{missao_solo_id}}", "host": ["{{baseUrl}}"], "path": ["missoes", "{{missao_solo_id}}"] } }
+        }
+      ]
+    }
+  ]
+}
