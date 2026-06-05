@@ -1,5 +1,7 @@
 package br.com.fiap.satmonitor.missao.service;
 
+import br.com.fiap.satmonitor.agencia.entity.Agencia;
+import br.com.fiap.satmonitor.agencia.repository.AgenciaRepository;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.exception.*;
 import br.com.fiap.satmonitor.missao.dto.*;
@@ -29,9 +31,12 @@ public class MissaoService {
     private final OperadorMissaoRepository operadorMissaoRepository;
     private final SateliteRepository sateliteRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AgenciaRepository agenciaRepository;
 
     @Transactional
     public MissaoResponse criar(MissaoRequest req, Operador operadorLogado) {
+        Agencia agencia = resolverAgencia(req.agenciaId());
+
         Missao missao = Missao.builder()
                 .nome(req.nome())
                 .descricao(req.descricao())
@@ -39,6 +44,9 @@ public class MissaoService {
                 .status(req.status())
                 .senhaMissao(passwordEncoder.encode(req.senhaMissao()))
                 .operadorDono(operadorLogado)
+                .agencia(agencia)
+                .objetivo(req.objetivo())
+                .dataFimPrevista(req.dataFimPrevista())
                 .build();
 
         missaoRepository.save(missao);
@@ -91,6 +99,9 @@ public class MissaoService {
         missao.setDescricao(req.descricao());
         missao.setDataLancamento(req.dataLancamento());
         missao.setStatus(req.status());
+        missao.setAgencia(resolverAgencia(req.agenciaId()));
+        missao.setObjetivo(req.objetivo());
+        missao.setDataFimPrevista(req.dataFimPrevista());
 
         missaoRepository.save(missao);
 
@@ -223,7 +234,17 @@ public class MissaoService {
                 .roleDoOperador(roleDoOperador.name())
                 .totalMembros(totalMembros)
                 .totalSatelites(totalSatelites)
+                .agenciaId(missao.getAgencia() != null ? missao.getAgencia().getId() : null)
+                .nomeAgencia(missao.getAgencia() != null ? missao.getAgencia().getNome() : null)
+                .objetivo(missao.getObjetivo())
+                .dataFimPrevista(missao.getDataFimPrevista())
                 .build();
+    }
+
+    private Agencia resolverAgencia(Long agenciaId) {
+        if (agenciaId == null) return null;
+        return agenciaRepository.findById(agenciaId)
+                .orElseThrow(() -> new EntityNotFoundException("Agência não encontrada com id: " + agenciaId));
     }
 
     private MembroResponse toMembroResponse(OperadorMissao om) {

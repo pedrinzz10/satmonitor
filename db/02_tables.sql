@@ -7,6 +7,16 @@
 -- As FKs ficam no script 03_foreign_keys.sql (ordem independente).
 -- ================================================================
 
+-- ── Agências espaciais ──────────────────────────────────────────
+CREATE TABLE TB_AGENCIA (
+    id            NUMBER(19)    NOT NULL,
+    nome          VARCHAR2(255) NOT NULL,
+    sigla_pais    CHAR(2)       NOT NULL,
+    tipo_agencia  VARCHAR2(50),
+    data_cadastro DATE          DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT PK_AGENCIA PRIMARY KEY (id)
+);
+
 -- ── Operadores ──────────────────────────────────────────────────
 CREATE TABLE TB_OPERADOR (
     id     NUMBER(19)    NOT NULL,
@@ -28,6 +38,9 @@ CREATE TABLE TB_MISSAO (
     status           VARCHAR2(20)  NOT NULL,
     senha_missao     VARCHAR2(255) NOT NULL,
     operador_dono_id NUMBER(19),
+    agencia_id       NUMBER(19),
+    objetivo         VARCHAR2(500),
+    data_fim_prevista DATE,
     CONSTRAINT PK_MISSAO        PRIMARY KEY (id),
     CONSTRAINT CK_MISSAO_STATUS CHECK (status IN ('PLANEJADA','ATIVA','ENCERRADA'))
 );
@@ -50,8 +63,12 @@ CREATE TABLE TB_SATELITE (
     altitude_km     NUMBER,
     inclinacao      NUMBER,
     longitude_nodo  NUMBER,
+    tipo_orbita     VARCHAR2(20),
+    status_satelite VARCHAR2(20),
     missao_id       NUMBER(19)    NOT NULL,
-    CONSTRAINT PK_SATELITE PRIMARY KEY (id)
+    CONSTRAINT PK_SATELITE       PRIMARY KEY (id),
+    CONSTRAINT CK_SAT_ORBITA     CHECK (tipo_orbita IS NULL OR tipo_orbita IN ('LEO','MEO','GEO','HEO')),
+    CONSTRAINT CK_SAT_STATUS     CHECK (status_satelite IS NULL OR status_satelite IN ('ATIVO','STANDBY','MANUTENCAO','DESATIVADO'))
 );
 
 -- ── Sensor (tabela base da herança JOINED) ──────────────────────
@@ -103,6 +120,23 @@ CREATE TABLE TB_LEITURA_SENSOR (
     data_hora_leitura TIMESTAMP    NOT NULL,
     status            VARCHAR2(20) NOT NULL,
     sensor_id         NUMBER(19)   NOT NULL,
-    CONSTRAINT PK_LEITURA_SENSOR PRIMARY KEY (id),
-    CONSTRAINT CK_LEITURA_STATUS CHECK (status IN ('NORMAL','ALERTA','CRITICO'))
+    latitude          NUMBER(9,6),
+    longitude         NUMBER(9,6),
+    qualidade         VARCHAR2(20) DEFAULT 'BOA',
+    CONSTRAINT PK_LEITURA_SENSOR  PRIMARY KEY (id),
+    CONSTRAINT CK_LEITURA_STATUS  CHECK (status IN ('NORMAL','ALERTA','CRITICO')),
+    CONSTRAINT CK_LEITURA_QUAL    CHECK (qualidade IS NULL OR qualidade IN ('BOA','DEGRADADA','INVALIDA'))
+);
+
+-- ── Alertas (gerados automaticamente pela API Java) ─────────────
+CREATE TABLE TB_ALERTA (
+    id            NUMBER(19)    NOT NULL,
+    leitura_id    NUMBER(19)    NOT NULL,
+    tipo_alerta   VARCHAR2(20)  NOT NULL,
+    descricao     VARCHAR2(500),
+    data_alerta   TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+    status_alerta VARCHAR2(20)  DEFAULT 'ATIVO' NOT NULL,
+    CONSTRAINT PK_ALERTA        PRIMARY KEY (id),
+    CONSTRAINT CK_ALERTA_TIPO   CHECK (tipo_alerta IN ('ALERTA','CRITICO')),
+    CONSTRAINT CK_ALERTA_STATUS CHECK (status_alerta IN ('ATIVO','RECONHECIDO','RESOLVIDO'))
 );

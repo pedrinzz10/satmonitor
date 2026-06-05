@@ -1,6 +1,8 @@
 package br.com.fiap.satmonitor.satelite.entity;
 
 import br.com.fiap.satmonitor.missao.entity.Missao;
+import br.com.fiap.satmonitor.satelite.enums.StatusSatelite;
+import br.com.fiap.satmonitor.satelite.enums.TipoOrbita;
 import br.com.fiap.satmonitor.sensor.entity.Sensor;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -35,6 +37,14 @@ public class Satelite {
 
     @Embedded
     private CoordenadasOrbitais coordenadas;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_orbita", length = 20)
+    private TipoOrbita tipoOrbita;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_satelite", length = 20)
+    private StatusSatelite statusSatelite;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "missao_id", nullable = false)

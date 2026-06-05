@@ -9,10 +9,13 @@ API Java para monitoramento de satélites em órbita. Desenvolvida como Global S
 Uma estação terrestre cria **missões espaciais**, cada missão agrupa **satélites**, cada satélite carrega **sensores**, e cada sensor gera **leituras** contínuas. Quando uma leitura ultrapassa os limites configurados, a API classifica automaticamente como **NORMAL**, **ALERTA** ou **CRÍTICO** — sem nenhuma intervenção manual.
 
 ```
-Missao → Satelite → Sensor → LeituraSensor
-                                    ↑
-                            classificação automática:
-                            NORMAL | ALERTA | CRITICO
+Agencia → Missao → Satelite → Sensor → LeituraSensor
+                                               ↓
+                                           StatusCalculator
+                                               ↓
+                                        NORMAL | ALERTA | CRITICO
+                                               ↓ (se ALERTA ou CRITICO)
+                                             Alerta  →  trigger Oracle (PL/SQL)
 ```
 
 ---
@@ -45,40 +48,132 @@ Missao → Satelite → Sensor → LeituraSensor
 
 ### 2. Registrar um operador
 
-```bash
-curl -s -X POST http://localhost:8080/auth/registrar \
-  -H "Content-Type: application/json" \
-  -d '{"login":"admin@sat.dev","senha":"senha123","nome":"Administrador"}'
-# → 201 Created (corpo vazio)
+`POST /auth/registrar`
+```json
+{
+  "login": "admin@sat.dev",
+  "senha": "senha123",
+  "nome": "Administrador"
+}
 ```
+`→ 201 Created (corpo vazio)`
 
 ### 3. Fazer login e obter o token JWT
 
-```bash
-curl -s -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"login":"admin@sat.dev","senha":"senha123"}'
-# → {"token":"eyJhbGciOiJIUzI1NiJ9..."}
+`POST /auth/login`
+```json
+{
+  "login": "admin@sat.dev",
+  "senha": "senha123"
+}
+```
+`→ 200 OK`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9..."
+}
 ```
 
-### 4. Criar uma missão (com token)
+### 4. Criar uma agência (com token)
 
-```bash
-curl -s -X POST http://localhost:8080/missoes \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
-  -d '{"nome":"Missao Alpha","descricao":"Missão principal","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"acesso123"}'
-# → 201 Created com o id da missão
+`POST /agencias` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Agência Espacial Brasileira",
+  "siglaPais": "BR",
+  "tipoAgencia": "Governamental"
+}
+```
+`→ 201 Created`
+```json
+{
+  "id": 1,
+  "nome": "Agência Espacial Brasileira",
+  "siglaPais": "BR",
+  "tipoAgencia": "Governamental"
+}
 ```
 
-### 5. Registrar leitura (sem token — endpoint IoT)
+### 5. Criar uma missão (com token)
 
-```bash
-curl -s -X POST http://localhost:8080/leituras \
-  -H "Content-Type: application/json" \
-  -d '{"valor":95.3,"sensorId":1}'
-# → 201 Created com status calculado automaticamente (ex: "CRITICO")
+`POST /missoes` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Missao Alpha",
+  "descricao": "Missão principal de monitoramento",
+  "dataLancamento": "2026-06-01",
+  "status": "PLANEJADA",
+  "senhaMissao": "acesso123",
+  "agenciaId": 1,
+  "objetivo": "Monitorar temperatura orbital",
+  "dataFimPrevista": "2027-06-01"
+}
 ```
+`→ 201 Created com o id da missão`
+
+> `agenciaId`, `objetivo` e `dataFimPrevista` são opcionais.
+
+### 6. Criar um satélite (com token)
+
+`POST /satelites` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "SAT-01",
+  "dataLancamento": "2026-06-01",
+  "missaoId": 1,
+  "coordenadas": {
+    "altitudeKm": 550.0,
+    "inclinacao": 53.0,
+    "longitudeNodo": 210.5
+  },
+  "tipoOrbita": "LEO",
+  "statusSatelite": "ATIVO"
+}
+```
+`→ 201 Created`
+
+> `tipoOrbita`, `statusSatelite` e `longitudeNodo` são opcionais.
+
+### 7. Criar um sensor (com token)
+
+`POST /sensores` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Sensor Térmico Principal",
+  "unidade": "°C",
+  "limiteMin": 0.0,
+  "limiteMax": 80.0,
+  "margemAlerta": 10.0,
+  "sateliteId": 1,
+  "tipo": "TERMICO",
+  "unidadeEscala": "CELSIUS"
+}
+```
+`→ 201 Created`
+
+### 8. Registrar leitura (sem token — endpoint IoT)
+
+`POST /leituras`
+```json
+{
+  "valor": 95.3,
+  "sensorId": 1,
+  "latitude": -23.5505,
+  "longitude": -46.6333,
+  "qualidade": "BOA"
+}
+```
+`→ 201 Created`
+```json
+{
+  "id": 1,
+  "valor": 95.3,
+  "status": "CRITICO",
+  "qualidade": "BOA"
+}
+```
+
+> `latitude`, `longitude` e `qualidade` são opcionais. `qualidade` aceita `BOA`, `DEGRADADA` ou `INVALIDA` (padrão: `BOA`).
 
 ---
 
@@ -120,6 +215,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 **Rotas públicas (sem token):**
 - `POST /auth/login` e `POST /auth/registrar`
 - Todos os `GET /satelites/**`, `GET /sensores/**`, `GET /leituras/**`
+- `GET /agencias/**`, `GET /alertas/**`
 - `POST /leituras` — ESP32 (IoT) envia leituras sem token
 - `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`
 
@@ -146,6 +242,15 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 ---
 
 ## Todos os endpoints
+
+### Agências
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| POST | `/agencias` | ✓ | Cria agência espacial |
+| GET | `/agencias` | — | Lista paginada |
+| GET | `/agencias/{id}` | — | Busca por id |
+| PUT | `/agencias/{id}` | ✓ | Atualiza |
+| DELETE | `/agencias/{id}` | ✓ | Remove |
 
 ### Auth
 | Método | Rota | Auth | Descrição |
@@ -198,6 +303,14 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 | GET | `/leituras/satelite/{sateliteId}` | — | — |
 | DELETE | `/leituras/{id}` | ✓ | SUPERVISOR |
 
+### Alertas
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| GET | `/alertas` | — | Lista todos (filtro `?status=ATIVO\|RECONHECIDO\|RESOLVIDO`) |
+| GET | `/alertas/{id}` | — | Busca por id |
+| GET | `/alertas/satelite/{sateliteId}` | — | Alertas de um satélite |
+| PATCH | `/alertas/{id}?novoStatus=X` | ✓ | Reconhece ou resolve o alerta |
+
 ---
 
 ## Tipos de sensor
@@ -238,16 +351,18 @@ Todos os erros seguem o mesmo formato:
 ## Modelo de dados simplificado
 
 ```
+TB_AGENCIA             ← agência espacial (opcional em Missao)
 TB_OPERADOR
-TB_MISSAO              ← senha protegida por BCrypt
+TB_MISSAO              ← senha BCrypt | FK opcional p/ TB_AGENCIA
 TB_OPERADOR_MISSAO     ← junction table com role (DONO/SUPERVISOR/MEMBRO)
-TB_SATELITE            ← coordenadas embutidas via @Embeddable
+TB_SATELITE            ← coordenadas @Embeddable | tipoOrbita | statusSatelite
 TB_SENSOR              ← base (herança JOINED)
   TB_SENSOR_TERMICO
   TB_SENSOR_PRESSAO
   TB_SENSOR_RADIACAO
   TB_MAGNETOMETRO
-TB_LEITURA_SENSOR      ← status calculado pelo servidor, nunca pelo cliente
+TB_LEITURA_SENSOR      ← status calculado pelo servidor | latitude/longitude | qualidade
+TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger Oracle
 ```
 
 ---
@@ -257,30 +372,47 @@ TB_LEITURA_SENSOR      ← status calculado pelo servidor, nunca pelo cliente
 | Arquivo | Conteúdo |
 |---------|---------|
 | [`docs/Auth.md`](docs/Auth.md) | JWT, registro, login, filtro de segurança |
+| [`docs/Agencia.md`](docs/Agencia.md) | Agências espaciais — CRUD e vínculo com missões |
 | [`docs/Missao.md`](docs/Missao.md) | Roles, endpoints de missão, fluxos de entrada/saída |
-| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, estatísticas |
+| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, tipo de órbita, estatísticas |
 | [`docs/Sensor.md`](docs/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
-| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, filtros |
+| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, geração automática de alertas |
+| [`docs/Alerta.md`](docs/Alerta.md) | Alertas automáticos, ciclo de vida, integração Oracle |
 | [`docs/Exception.md`](docs/Exception.md) | Mapa de erros, como adicionar nova exceção |
 | [`docs/MissaoService.md`](docs/MissaoService.md) | Fluxos internos do service de missões |
-| [`docs/Testes.md`](docs/Testes.md) | Guia de testes manuais com curl |
+| [`docs/Testes.md`](docs/Testes.md) | Coleção Postman importável com testes automáticos |
+| [`docs/Deploy.md`](docs/Deploy.md) | Passo a passo: Docker + Azure VM + Oracle remoto |
 
 ---
 
 ## Deploy
 
-```bash
-# Build da imagem
-docker build -t satmonitor .
+### Desenvolvimento local (H2 em memória)
 
-# Rodar com Oracle (produção)
-docker run -p 8080:8080 \
-  -e JWT_SECRET=seu_secret_aqui \
-  -e ORACLE_URL=jdbc:oracle:thin:@... \
-  -e ORACLE_USER=usuario \
-  -e ORACLE_PASSWORD=senha \
-  -e SPRING_PROFILES_ACTIVE=prod \
-  satmonitor
+```bash
+docker compose --profile dev up --build
+```
+
+### Produção (Oracle FIAP)
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```
+JWT_SECRET=seu_secret_aqui
+ORACLE_URL=jdbc:oracle:thin:@<host>:<porta>/<service>
+ORACLE_USER=usuario
+ORACLE_PASSWORD=senha
+```
+
+```bash
+docker compose --profile prod up --build
+```
+
+### Build manual da imagem
+
+```bash
+docker build -t satmonitor .
+docker run -p 8080:8080 --env-file .env -e SPRING_PROFILES_ACTIVE=prod satmonitor
 ```
 
 Health check: `GET /actuator/health`

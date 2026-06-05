@@ -10,5 +10,8 @@ public record MissaoUpdateRequest(
         @NotBlank String nome,
         String descricao,
         @NotNull LocalDate dataLancamento,
-        @NotNull StatusMissao status
+        @NotNull StatusMissao status,
+        Long agenciaId,
+        String objetivo,
+        LocalDate dataFimPrevista
 ) {}

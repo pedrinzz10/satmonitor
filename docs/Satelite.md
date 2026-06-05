@@ -43,7 +43,9 @@ curl -s -X POST http://localhost:8080/satelites \
       "altitudeKm": 550.0,
       "inclinacao": 53.5,
       "longitudeNodo": 12.3
-    }
+    },
+    "tipoOrbita": "LEO",
+    "statusSatelite": "ATIVO"
   }'
 ```
 
@@ -56,6 +58,8 @@ curl -s -X POST http://localhost:8080/satelites \
   "altitudeKm": 550.0,
   "inclinacao": 53.5,
   "longitudeNodo": 12.3,
+  "tipoOrbita": "LEO",
+  "statusSatelite": "ATIVO",
   "missaoId": 1,
   "nomeMissao": "Missao Alpha",
   "totalSensores": 0,
@@ -80,6 +84,10 @@ curl -s -X POST http://localhost:8080/satelites \
 | `coordenadas.altitudeKm` | Double | Sim | Altitude orbital em km |
 | `coordenadas.inclinacao` | Double | Sim | Ângulo de inclinação em graus |
 | `coordenadas.longitudeNodo` | Double | Não | Longitude do nodo ascendente em graus |
+| `tipoOrbita` | Enum | Não | `LEO`, `MEO`, `GEO` ou `HEO` |
+| `statusSatelite` | Enum | Não | `ATIVO`, `STANDBY`, `MANUTENCAO` ou `DESATIVADO` |
+
+> `tipoOrbita` e `statusSatelite` são opcionais — missões antigas continuam funcionando sem eles.
 
 ---
 

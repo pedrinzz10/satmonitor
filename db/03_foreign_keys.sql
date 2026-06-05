@@ -7,6 +7,10 @@
 -- o Hibernate apaga os filhos antes dos pais.
 -- ================================================================
 
+-- Missão → Agência (opcional)
+ALTER TABLE TB_MISSAO ADD CONSTRAINT FK_MISSAO_AGENCIA
+    FOREIGN KEY (agencia_id) REFERENCES TB_AGENCIA (id);
+
 -- Missão → Operador dono
 ALTER TABLE TB_MISSAO ADD CONSTRAINT FK_MISSAO_OPERADOR_DONO
     FOREIGN KEY (operador_dono_id) REFERENCES TB_OPERADOR (id);
@@ -38,3 +42,7 @@ ALTER TABLE TB_MAGNETOMETRO ADD CONSTRAINT FK_MAGNETOMETRO_SENSOR
 -- Leitura → Sensor
 ALTER TABLE TB_LEITURA_SENSOR ADD CONSTRAINT FK_LEITURA_SENSOR
     FOREIGN KEY (sensor_id) REFERENCES TB_SENSOR (id);
+
+-- Alerta → Leitura
+ALTER TABLE TB_ALERTA ADD CONSTRAINT FK_ALERTA_LEITURA
+    FOREIGN KEY (leitura_id) REFERENCES TB_LEITURA_SENSOR (id);
