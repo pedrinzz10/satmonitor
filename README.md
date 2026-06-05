@@ -386,18 +386,32 @@ TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger 
 
 ## Deploy
 
-```bash
-# Build da imagem
-docker build -t satmonitor .
+### Desenvolvimento local (H2 em memória)
 
-# Rodar com Oracle (produção)
-docker run -p 8080:8080 \
-  -e JWT_SECRET=seu_secret_aqui \
-  -e ORACLE_URL=jdbc:oracle:thin:@... \
-  -e ORACLE_USER=usuario \
-  -e ORACLE_PASSWORD=senha \
-  -e SPRING_PROFILES_ACTIVE=prod \
-  satmonitor
+```bash
+docker compose --profile dev up --build
+```
+
+### Produção (Oracle FIAP)
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```
+JWT_SECRET=seu_secret_aqui
+ORACLE_URL=jdbc:oracle:thin:@<host>:<porta>/<service>
+ORACLE_USER=usuario
+ORACLE_PASSWORD=senha
+```
+
+```bash
+docker compose --profile prod up --build
+```
+
+### Build manual da imagem
+
+```bash
+docker build -t satmonitor .
+docker run -p 8080:8080 --env-file .env -e SPRING_PROFILES_ACTIVE=prod satmonitor
 ```
 
 Health check: `GET /actuator/health`

@@ -1,0 +1,32 @@
+# ── SatMonitor — Docker Compose ─────────────────────────────────
+#
+# Perfil dev  (H2 em memória):
+#   docker compose --profile dev up --build
+#
+# Perfil prod (Oracle FIAP — requer .env com as variáveis abaixo):
+#   docker compose --profile prod up --build
+#
+# Variáveis necessárias para prod (.env ou export):
+#   JWT_SECRET, ORACLE_URL, ORACLE_USER, ORACLE_PASSWORD
+
+services:
+
+  satmonitor-dev:
+    build: .
+    profiles: [dev]
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: satmonitor-dev-secret-local
+
+  satmonitor-prod:
+    build: .
+    profiles: [prod]
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      ORACLE_URL: ${ORACLE_URL}
+      ORACLE_USER: ${ORACLE_USER}
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
