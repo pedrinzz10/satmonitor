@@ -107,43 +107,43 @@ assert_eq "Aplicação UP" "UP" (j).status
 # ── 2. AUTH — Registro ───────────────────────────────────────────
 section "2. AUTH — Registro de operadores"
 
-POST "/auth/registrar" '{"login":"dono@sat.dev","senha":"senha123","nome":"Operador Dono"}'
+POST "/auth/registrar" (@{login="dono@sat.dev";      senha="senha123"; nome="Operador Dono"}        | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar dono → 201" "201" $script:STATUS
 
-POST "/auth/registrar" '{"login":"membro@sat.dev","senha":"senha123","nome":"Operador Membro"}'
+POST "/auth/registrar" (@{login="membro@sat.dev";    senha="senha123"; nome="Operador Membro"}      | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar membro → 201" "201" $script:STATUS
 
-POST "/auth/registrar" '{"login":"supervisor@sat.dev","senha":"senha123","nome":"Operador Supervisor"}'
+POST "/auth/registrar" (@{login="supervisor@sat.dev";senha="senha123"; nome="Operador Supervisor"}  | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar supervisor → 201" "201" $script:STATUS
 
-POST "/auth/registrar" '{"login":"forasteiro@sat.dev","senha":"senha123","nome":"Operador Forasteiro"}'
+POST "/auth/registrar" (@{login="forasteiro@sat.dev";senha="senha123"; nome="Operador Forasteiro"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar forasteiro → 201" "201" $script:STATUS
 
-POST "/auth/registrar" '{"login":"dono@sat.dev","senha":"abc","nome":"Dup"}'
+POST "/auth/registrar" (@{login="dono@sat.dev"; senha="abc"; nome="Dup"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar login duplicado → 400" "400" $script:STATUS
 
-POST "/auth/registrar" '{"login":"","senha":"abc","nome":"Vazio"}'
+POST "/auth/registrar" (@{login="";senha="abc";nome="Vazio"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/registrar login em branco → 400" "400" $script:STATUS
 
 # ── 3. AUTH — Login ──────────────────────────────────────────────
 section "3. AUTH — Login e tokens JWT"
 
-POST "/auth/login" '{"login":"dono@sat.dev","senha":"senha123"}'
+POST "/auth/login" (@{login="dono@sat.dev";       senha="senha123"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/login dono → 200" "200" $script:STATUS
 $TOKEN_DONO = (j).token
 assert_not_empty "Token JWT do dono obtido" $TOKEN_DONO
 
-POST "/auth/login" '{"login":"membro@sat.dev","senha":"senha123"}'
+POST "/auth/login" (@{login="membro@sat.dev";     senha="senha123"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/login membro → 200" "200" $script:STATUS
 $TOKEN_MEMBRO = (j).token
 assert_not_empty "Token JWT do membro obtido" $TOKEN_MEMBRO
 
-POST "/auth/login" '{"login":"supervisor@sat.dev","senha":"senha123"}'
+POST "/auth/login" (@{login="supervisor@sat.dev"; senha="senha123"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/login supervisor → 200" "200" $script:STATUS
 $TOKEN_SUPERVISOR = (j).token
 assert_not_empty "Token JWT do supervisor obtido" $TOKEN_SUPERVISOR
 
-POST "/auth/login" '{"login":"forasteiro@sat.dev","senha":"senha123"}'
+POST "/auth/login" (@{login="forasteiro@sat.dev";senha="senha123"} | ConvertTo-Json -Compress)
 assert_status "POST /auth/login forasteiro → 200" "200" $script:STATUS
 $TOKEN_FORASTEIRO = (j).token
 assert_not_empty "Token JWT do forasteiro obtido" $TOKEN_FORASTEIRO
@@ -156,19 +156,19 @@ if (-not $TOKEN_DONO -or $TOKEN_DONO -eq "null") {
 # ── 4. AGÊNCIAS — CRUD ───────────────────────────────────────────
 section "4. AGÊNCIAS — CRUD básico"
 
-POST "/agencias" '{"nome":"NASA","siglaPais":"US","tipoAgencia":"GOVERNAMENTAL"}' $TOKEN_DONO
+POST "/agencias" (@{nome="NASA";siglaPais="US";tipoAgencia="GOVERNAMENTAL"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "POST /agencias → 201" "201" $script:STATUS
 $AGENCIA_ID = (j).id
 assert_not_empty "id da agência válido" $AGENCIA_ID
 assert_eq "Nome NASA correto" "NASA" (j).nome
 
-POST "/agencias" '{"nome":"ESA","siglaPais":"EU","tipoAgencia":"GOVERNAMENTAL"}' $TOKEN_DONO
+POST "/agencias" (@{nome="ESA";siglaPais="EU";tipoAgencia="GOVERNAMENTAL"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "POST /agencias ESA → 201" "201" $script:STATUS
 
-POST "/agencias" '{"nome":"INPE","siglaPais":"BRA"}' $TOKEN_DONO
+POST "/agencias" (@{nome="INPE";siglaPais="BRA"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "POST /agencias siglaPais inválida (3 chars) → 400" "400" $script:STATUS
 
-POST "/agencias" '{"nome":"X","siglaPais":"XX"}'
+POST "/agencias" (@{nome="X";siglaPais="XX"} | ConvertTo-Json -Compress)
 assert_status "POST /agencias sem token → 403" "403" $script:STATUS
 
 GET "/agencias"
@@ -179,7 +179,7 @@ GET "/agencias/$AGENCIA_ID"
 assert_status "GET /agencias/{id} → 200" "200" $script:STATUS
 assert_eq "Nome NASA correto no GET" "NASA" (j).nome
 
-PUT "/agencias/$AGENCIA_ID" '{"nome":"NASA — National Aeronautics","siglaPais":"US","tipoAgencia":"GOVERNAMENTAL"}' $TOKEN_DONO
+PUT "/agencias/$AGENCIA_ID" (@{nome="NASA — National Aeronautics";siglaPais="US";tipoAgencia="GOVERNAMENTAL"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "PUT /agencias/{id} → 200" "200" $script:STATUS
 assert_eq "Nome atualizado" "NASA — National Aeronautics" (j).nome
 
@@ -221,47 +221,47 @@ assert_status "GET /missoes/{id} (não membro com token) → 403" "403" $script:
 GET "/missoes/$MISSAO_ID"
 assert_status "GET /missoes/{id} sem token → 403" "403" $script:STATUS
 
-PUT "/missoes/$MISSAO_ID" '{"nome":"Missao Alpha v2","descricao":"Atualizada","dataLancamento":"2026-07-01","status":"ATIVA"}' $TOKEN_DONO
+PUT "/missoes/$MISSAO_ID" (@{nome="Missao Alpha v2";descricao="Atualizada";dataLancamento="2026-07-01";status="ATIVA"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "PUT /missoes/{id} (DONO) → 200" "200" $script:STATUS
 assert_eq "Nome atualizado" "Missao Alpha v2" (j).nome
 assert_eq "Status atualizado para ATIVA" "ATIVA" (j).status
 
-PUT "/missoes/$MISSAO_ID" '{"nome":"Invasao","descricao":"x","dataLancamento":"2026-07-01","status":"ATIVA"}' $TOKEN_FORASTEIRO
+PUT "/missoes/$MISSAO_ID" (@{nome="Invasao";descricao="x";dataLancamento="2026-07-01";status="ATIVA"} | ConvertTo-Json -Compress) $TOKEN_FORASTEIRO
 assert_status "PUT /missoes/{id} (nao membro) → 404" "404" $script:STATUS
 
 # ── 6. MISSÕES — Entrar e Sair ───────────────────────────────────
 section "6. MISSÕES — Fluxo de entrada via senha e regra do DONO único"
 
-POST "/missoes/$MISSAO_ID/entrar" '{"senha":"errada"}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/entrar" (@{senha="errada"}  | ConvertTo-Json -Compress) $TOKEN_MEMBRO
 assert_status "POST /entrar senha errada → 401" "401" $script:STATUS
 
-POST "/missoes/$MISSAO_ID/entrar" '{"senha":"senha123"}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/entrar" (@{senha="senha123"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
 assert_status "POST /entrar (membro) → 200" "200" $script:STATUS
 assert_eq "Novo membro recebe role MEMBRO" "MEMBRO" (j).roleDoOperador
 
-POST "/missoes/$MISSAO_ID/entrar" '{"senha":"senha123"}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/entrar" (@{senha="senha123"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
 assert_status "POST /entrar já é membro → 409" "409" $script:STATUS
 
-POST "/missoes/$MISSAO_ID/entrar" '{"senha":"senha123"}' $TOKEN_SUPERVISOR
+POST "/missoes/$MISSAO_ID/entrar" (@{senha="senha123"} | ConvertTo-Json -Compress) $TOKEN_SUPERVISOR
 assert_status "POST /entrar (supervisor) → 200" "200" $script:STATUS
 
-PUT "/missoes/$MISSAO_ID" '{"nome":"Invasao","descricao":"x","dataLancamento":"2026-07-01","status":"ATIVA"}' $TOKEN_MEMBRO
+PUT "/missoes/$MISSAO_ID" (@{nome="Invasao";descricao="x";dataLancamento="2026-07-01";status="ATIVA"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
 assert_status "PUT /missoes/{id} (MEMBRO que é membro) → 403" "403" $script:STATUS
 
 DELETE "/missoes/$MISSAO_ID" $TOKEN_MEMBRO
 assert_status "DELETE /missoes/{id} (MEMBRO que é membro) → 403" "403" $script:STATUS
 
-POST "/missoes" '{"nome":"Missao Solo","descricao":"Sem outros donos","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"senha456"}' $TOKEN_DONO
+POST "/missoes" (@{nome="Missao Solo";descricao="Sem outros donos";dataLancamento="2026-06-01";status="PLANEJADA";senhaMissao="senha456"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "POST /missoes (solo) → 201" "201" $script:STATUS
 $MISSAO_SOLO_ID = (j).id
 
-POST "/missoes/$MISSAO_SOLO_ID/sair" '{}' $TOKEN_DONO
+POST "/missoes/$MISSAO_SOLO_ID/sair" "{}" $TOKEN_DONO
 assert_status "POST /sair DONO único → 400" "400" $script:STATUS
 
-POST "/missoes/$MISSAO_SOLO_ID/entrar" '{"senha":"senha456"}' $TOKEN_SUPERVISOR
+POST "/missoes/$MISSAO_SOLO_ID/entrar" (@{senha="senha456"} | ConvertTo-Json -Compress) $TOKEN_SUPERVISOR
 assert_status "POST /entrar missão solo (supervisor) → 200" "200" $script:STATUS
 
-POST "/missoes/$MISSAO_SOLO_ID/sair" '{}' $TOKEN_SUPERVISOR
+POST "/missoes/$MISSAO_SOLO_ID/sair" "{}" $TOKEN_SUPERVISOR
 assert_status "POST /sair (supervisor com sucesso) → 204" "204" $script:STATUS
 
 # ── 7. MISSÕES — Gerenciamento de membros ────────────────────────
@@ -305,13 +305,13 @@ assert_status "DELETE membro (MEMBRO tentando, role insuficiente) → 403" "403"
 DELETE "/missoes/$MISSAO_ID/membros/$ID_MEMBRO" $TOKEN_DONO
 assert_status "DELETE /membros/{membroId} (DONO) → 204" "204" $script:STATUS
 
-POST "/missoes/$MISSAO_ID/sair" '{}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/sair" "{}" $TOKEN_MEMBRO
 assert_status "POST /sair após ser removido → 404" "404" $script:STATUS
 
 # ── 8. SATÉLITES — CRUD ──────────────────────────────────────────
 section "8. SATÉLITES — CRUD e controle de acesso"
 
-POST "/missoes/$MISSAO_ID/entrar" '{"senha":"senha123"}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/entrar" (@{senha="senha123"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
 assert_status "POST /entrar membro re-ingressando → 200" "200" $script:STATUS
 
 $satBody = @{
@@ -341,7 +341,7 @@ assert_eq "statusSatelite salvo" "ATIVO" (j).statusSatelite
 POST "/satelites" $satBody $TOKEN_SUPERVISOR
 assert_status "POST /satelites nome duplicado → 400" "400" $script:STATUS
 
-POST "/satelites" '{"nome":"SAT-X","dataLancamento":"2026-01-01","missaoId":99999,"coordenadas":{"altitudeKm":100.0,"inclinacao":0.0}}' $TOKEN_SUPERVISOR
+POST "/satelites" (@{nome="SAT-X";dataLancamento="2026-01-01";missaoId=99999;coordenadas=@{altitudeKm=100.0;inclinacao=0.0}} | ConvertTo-Json -Compress -Depth 5) $TOKEN_SUPERVISOR
 assert_status "POST /satelites missaoId inexistente → 404" "404" $script:STATUS
 
 GET "/satelites"
@@ -434,7 +434,7 @@ assert_status "POST /sensores TERMICO sem unidadeEscala → 400" "400" $script:S
 POST "/sensores" (@{nome="Termometro";unidade="K";limiteMin=0.0;limiteMax=80.0;margemAlerta=10.0;sateliteId=$SAT_ID;tipo="TERMICO";unidadeEscala="KELVIN"} | ConvertTo-Json -Compress) $TOKEN_SUPERVISOR
 assert_status "POST /sensores nome duplicado no satélite → 400" "400" $script:STATUS
 
-POST "/sensores" '{"nome":"Orfao","unidade":"X","limiteMin":0.0,"limiteMax":10.0,"margemAlerta":5.0,"sateliteId":99999,"tipo":"TERMICO","unidadeEscala":"CELSIUS"}' $TOKEN_SUPERVISOR
+POST "/sensores" (@{nome="Orfao";unidade="X";limiteMin=0.0;limiteMax=10.0;margemAlerta=5.0;sateliteId=99999;tipo="TERMICO";unidadeEscala="CELSIUS"} | ConvertTo-Json -Compress) $TOKEN_SUPERVISOR
 assert_status "POST /sensores sateliteId inexistente → 404" "404" $script:STATUS
 
 POST "/sensores" (@{nome="SensorMembro";unidade="X";limiteMin=0.0;limiteMax=100.0;margemAlerta=10.0;sateliteId=$SAT_ID;tipo="TERMICO";unidadeEscala="CELSIUS"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
@@ -507,10 +507,10 @@ POST "/leituras" (@{valor=40.0;sensorId=$SENSOR_TERMICO_ID;qualidade="DEGRADADA"
 assert_status "POST /leituras qualidade=DEGRADADA → 201" "201" $script:STATUS
 assert_eq "qualidade=DEGRADADA salva" "DEGRADADA" (j).qualidade
 
-POST "/leituras" '{"valor":40.0,"sensorId":99999}'
+POST "/leituras" (@{valor=40.0;sensorId=99999} | ConvertTo-Json -Compress)
 assert_status "POST /leituras sensorId inexistente → 404" "404" $script:STATUS
 
-POST "/leituras" '{"valor":40.0}'
+POST "/leituras" (@{valor=40.0} | ConvertTo-Json -Compress)
 assert_status "POST /leituras sem sensorId → 400" "400" $script:STATUS
 
 # ── 12. LEITURAS — Consultas e filtros ───────────────────────────
@@ -679,7 +679,7 @@ assert_status "DELETE /missoes (SUPERVISOR) → 403" "403" $script:STATUS
 DELETE "/missoes/$MISSAO_ID" $TOKEN_MEMBRO
 assert_status "DELETE /missoes (MEMBRO) → 403" "403" $script:STATUS
 
-POST "/missoes/$MISSAO_ID/sair" '{}' $TOKEN_MEMBRO
+POST "/missoes/$MISSAO_ID/sair" "{}" $TOKEN_MEMBRO
 assert_status "POST /sair (MEMBRO voluntariamente) → 204" "204" $script:STATUS
 
 DELETE "/missoes/$MISSAO_SOLO_ID" $TOKEN_DONO
