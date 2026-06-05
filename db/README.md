@@ -5,8 +5,8 @@ DDL para provisionar o schema da API no Oracle (FIAP). Reflete o estado atual da
 ## Ordem de execução
 
 ```
-01_sequences.sql      → cria as 5 sequences (allocationSize = 1)
-02_tables.sql         → cria as 10 tabelas + PKs + CHECKs de enum
+01_sequences.sql      → cria as 7 sequences (allocationSize = 1)
+02_tables.sql         → cria as 12 tabelas + PKs + CHECKs de enum
 03_foreign_keys.sql   → adiciona as FKs entre as tabelas
 ```
 
@@ -25,18 +25,20 @@ Abra cada arquivo na ordem e execute como script (F5), ou rode `@caminho/arquivo
 
 ## Tabelas criadas
 
-| Tabela                | Origem (entidade)              | Observação                                  |
-|-----------------------|--------------------------------|---------------------------------------------|
-| `TB_OPERADOR`         | `Operador`                     | `login` único; `role` OPERADOR/ADMIN        |
-| `TB_MISSAO`           | `Missao`                       | `status` PLANEJADA/ATIVA/ENCERRADA          |
-| `TB_OPERADOR_MISSAO`  | `OperadorMissao`               | PK composta; `role` DONO/SUPERVISOR/MEMBRO  |
-| `TB_SATELITE`         | `Satelite` + `CoordenadasOrbitais` | coordenadas embutidas como colunas      |
-| `TB_SENSOR`           | `Sensor` (base JOINED)         | `tipo_sensor` é o discriminador             |
-| `TB_SENSOR_TERMICO`   | `SensorTermico`                | `unidade_escala` CELSIUS/FAHRENHEIT/KELVIN  |
-| `TB_SENSOR_PRESSAO`   | `SensorPressao`                | `tipo_pressao` ABSOLUTA/RELATIVA            |
-| `TB_SENSOR_RADIACAO`  | `SensorRadiacao`               | `tipo_radiacao` IONIZANTE/NAO_IONIZANTE     |
-| `TB_MAGNETOMETRO`     | `Magnetometro`                 | `eixos_medicao` X/Y/Z/XY/XZ/YZ/XYZ          |
-| `TB_LEITURA_SENSOR`   | `LeituraSensor`                | `status` NORMAL/ALERTA/CRITICO              |
+| Tabela                | Origem (entidade)              | Observação                                                   |
+|-----------------------|--------------------------------|--------------------------------------------------------------|
+| `TB_AGENCIA`          | `Agencia`                      | `sigla_pais` CHAR(2); `tipo_agencia` opcional                |
+| `TB_OPERADOR`         | `Operador`                     | `login` único; `role` OPERADOR/ADMIN                         |
+| `TB_MISSAO`           | `Missao`                       | `status` PLANEJADA/ATIVA/ENCERRADA; FK opcional p/ TB_AGENCIA; `objetivo` e `data_fim_prevista` opcionais |
+| `TB_OPERADOR_MISSAO`  | `OperadorMissao`               | PK composta; `role` DONO/SUPERVISOR/MEMBRO                   |
+| `TB_SATELITE`         | `Satelite` + `CoordenadasOrbitais` | coordenadas embutidas; `tipo_orbita` e `status_satelite` opcionais |
+| `TB_SENSOR`           | `Sensor` (base JOINED)         | `tipo_sensor` é o discriminador                              |
+| `TB_SENSOR_TERMICO`   | `SensorTermico`                | `unidade_escala` CELSIUS/FAHRENHEIT/KELVIN                   |
+| `TB_SENSOR_PRESSAO`   | `SensorPressao`                | `tipo_pressao` ABSOLUTA/RELATIVA                             |
+| `TB_SENSOR_RADIACAO`  | `SensorRadiacao`               | `tipo_radiacao` IONIZANTE/NAO_IONIZANTE                      |
+| `TB_MAGNETOMETRO`     | `Magnetometro`                 | `eixos_medicao` X/Y/Z/XY/XZ/YZ/XYZ                          |
+| `TB_LEITURA_SENSOR`   | `LeituraSensor`                | `status` NORMAL/ALERTA/CRITICO; `latitude`/`longitude`/`qualidade` opcionais |
+| `TB_ALERTA`           | `Alerta`                       | gerado automaticamente em ALERTA/CRITICO; `status_alerta` ATIVO/RECONHECIDO/RESOLVIDO |
 
 ## Relação com `ddl-auto`
 

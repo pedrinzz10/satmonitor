@@ -48,40 +48,132 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 
 ### 2. Registrar um operador
 
-```bash
-curl -s -X POST http://localhost:8080/auth/registrar \
-  -H "Content-Type: application/json" \
-  -d '{"login":"admin@sat.dev","senha":"senha123","nome":"Administrador"}'
-# → 201 Created (corpo vazio)
+`POST /auth/registrar`
+```json
+{
+  "login": "admin@sat.dev",
+  "senha": "senha123",
+  "nome": "Administrador"
+}
 ```
+`→ 201 Created (corpo vazio)`
 
 ### 3. Fazer login e obter o token JWT
 
-```bash
-curl -s -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"login":"admin@sat.dev","senha":"senha123"}'
-# → {"token":"eyJhbGciOiJIUzI1NiJ9..."}
+`POST /auth/login`
+```json
+{
+  "login": "admin@sat.dev",
+  "senha": "senha123"
+}
+```
+`→ 200 OK`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9..."
+}
 ```
 
-### 4. Criar uma missão (com token)
+### 4. Criar uma agência (com token)
 
-```bash
-curl -s -X POST http://localhost:8080/missoes \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
-  -d '{"nome":"Missao Alpha","descricao":"Missão principal","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"acesso123"}'
-# → 201 Created com o id da missão
+`POST /agencias` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Agência Espacial Brasileira",
+  "siglaPais": "BR",
+  "tipoAgencia": "Governamental"
+}
+```
+`→ 201 Created`
+```json
+{
+  "id": 1,
+  "nome": "Agência Espacial Brasileira",
+  "siglaPais": "BR",
+  "tipoAgencia": "Governamental"
+}
 ```
 
-### 5. Registrar leitura (sem token — endpoint IoT)
+### 5. Criar uma missão (com token)
 
-```bash
-curl -s -X POST http://localhost:8080/leituras \
-  -H "Content-Type: application/json" \
-  -d '{"valor":95.3,"sensorId":1}'
-# → 201 Created com status calculado automaticamente (ex: "CRITICO")
+`POST /missoes` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Missao Alpha",
+  "descricao": "Missão principal de monitoramento",
+  "dataLancamento": "2026-06-01",
+  "status": "PLANEJADA",
+  "senhaMissao": "acesso123",
+  "agenciaId": 1,
+  "objetivo": "Monitorar temperatura orbital",
+  "dataFimPrevista": "2027-06-01"
+}
 ```
+`→ 201 Created com o id da missão`
+
+> `agenciaId`, `objetivo` e `dataFimPrevista` são opcionais.
+
+### 6. Criar um satélite (com token)
+
+`POST /satelites` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "SAT-01",
+  "dataLancamento": "2026-06-01",
+  "missaoId": 1,
+  "coordenadas": {
+    "altitudeKm": 550.0,
+    "inclinacao": 53.0,
+    "longitudeNodo": 210.5
+  },
+  "tipoOrbita": "LEO",
+  "statusSatelite": "ATIVO"
+}
+```
+`→ 201 Created`
+
+> `tipoOrbita`, `statusSatelite` e `longitudeNodo` são opcionais.
+
+### 7. Criar um sensor (com token)
+
+`POST /sensores` · `Authorization: Bearer <token>`
+```json
+{
+  "nome": "Sensor Térmico Principal",
+  "unidade": "°C",
+  "limiteMin": 0.0,
+  "limiteMax": 80.0,
+  "margemAlerta": 10.0,
+  "sateliteId": 1,
+  "tipo": "TERMICO",
+  "unidadeEscala": "CELSIUS"
+}
+```
+`→ 201 Created`
+
+### 8. Registrar leitura (sem token — endpoint IoT)
+
+`POST /leituras`
+```json
+{
+  "valor": 95.3,
+  "sensorId": 1,
+  "latitude": -23.5505,
+  "longitude": -46.6333,
+  "qualidade": "BOA"
+}
+```
+`→ 201 Created`
+```json
+{
+  "id": 1,
+  "valor": 95.3,
+  "status": "CRITICO",
+  "qualidade": "BOA"
+}
+```
+
+> `latitude`, `longitude` e `qualidade` são opcionais. `qualidade` aceita `BOA`, `DEGRADADA` ou `INVALIDA` (padrão: `BOA`).
 
 ---
 
