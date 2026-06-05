@@ -122,6 +122,7 @@ public class LeituraService {
             throw new AcessoNegadoException("Role mínima exigida: SUPERVISOR");
         }
 
+        alertaRepository.deleteByLeituraId(id);
         leituraRepository.delete(leitura);
         log.info("Leitura id={} deletada pelo operador '{}'", id, operadorLogado.getLogin());
     }

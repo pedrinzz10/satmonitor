@@ -14,4 +14,6 @@ public interface AlertaRepository extends JpaRepository<Alerta, Long> {
     Page<Alerta> findBySateliteId(@Param("sateliteId") Long sateliteId, Pageable pageable);
 
     Page<Alerta> findByStatusAlerta(StatusAlerta statusAlerta, Pageable pageable);
+
+    void deleteByLeituraId(Long leituraId);
 }
