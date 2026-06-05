@@ -74,9 +74,15 @@ function do_request($method, $url, $body = $null, $token = $null) {
     if ($body) { $params.Body = [System.Text.Encoding]::UTF8.GetBytes($body) }
 
     try {
-        $res            = Invoke-WebRequest @params
-        $script:STATUS  = [int]$res.StatusCode
-        $script:BODY    = $res.Content
+        $res           = Invoke-WebRequest @params
+        $script:STATUS = [int]$res.StatusCode
+        # Quando Body é enviado como byte[], o PowerShell retorna Content como byte[]
+        # para respostas HATEOAS (application/hal+json). Normalizamos sempre para string.
+        if ($res.Content -is [byte[]]) {
+            $script:BODY = [System.Text.Encoding]::UTF8.GetString($res.Content)
+        } else {
+            $script:BODY = [string]$res.Content
+        }
     } catch {
         Write-Host "  [CONEXÃO FALHOU] $method $url" -ForegroundColor Red
         $script:STATUS = 0
