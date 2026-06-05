@@ -53,6 +53,8 @@ public class SateliteService {
                 .dataLancamento(req.dataLancamento())
                 .coordenadas(coordenadas)
                 .missao(missao)
+                .tipoOrbita(req.tipoOrbita())
+                .statusSatelite(req.statusSatelite())
                 .build();
 
         sateliteRepository.save(satelite);
@@ -101,6 +103,8 @@ public class SateliteService {
                 .inclinacao(req.coordenadas().inclinacao())
                 .longitudeNodo(req.coordenadas().longitudeNodo())
                 .build());
+        satelite.setTipoOrbita(req.tipoOrbita());
+        satelite.setStatusSatelite(req.statusSatelite());
 
         sateliteRepository.save(satelite);
 
@@ -153,6 +157,8 @@ public class SateliteService {
                 .altitudeKm(c != null ? c.getAltitudeKm() : null)
                 .inclinacao(c != null ? c.getInclinacao() : null)
                 .longitudeNodo(c != null ? c.getLongitudeNodo() : null)
+                .tipoOrbita(satelite.getTipoOrbita())
+                .statusSatelite(satelite.getStatusSatelite())
                 .missaoId(satelite.getMissao().getId())
                 .nomeMissao(satelite.getMissao().getNome())
                 .totalSensores(satelite.getSensores().size())

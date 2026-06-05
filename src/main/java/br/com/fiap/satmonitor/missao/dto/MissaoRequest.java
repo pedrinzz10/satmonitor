@@ -12,5 +12,8 @@ public record MissaoRequest(
         String descricao,
         @NotNull LocalDate dataLancamento,
         @NotNull StatusMissao status,
-        @NotBlank @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres") String senhaMissao
+        @NotBlank @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres") String senhaMissao,
+        Long agenciaId,
+        String objetivo,
+        LocalDate dataFimPrevista
 ) {}

@@ -22,4 +22,8 @@ public class MissaoResponse extends RepresentationModel<MissaoResponse> {
     private String roleDoOperador;
     private Integer totalMembros;
     private Integer totalSatelites;
+    private Long agenciaId;
+    private String nomeAgencia;
+    private String objetivo;
+    private LocalDate dataFimPrevista;
 }

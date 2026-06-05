@@ -1,5 +1,6 @@
 package br.com.fiap.satmonitor.leitura.dto;
 
+import br.com.fiap.satmonitor.leitura.enums.QualidadeLeitura;
 import br.com.fiap.satmonitor.leitura.enums.StatusLeitura;
 import lombok.*;
 import org.springframework.hateoas.RepresentationModel;
@@ -21,4 +22,7 @@ public class LeituraResponse extends RepresentationModel<LeituraResponse> {
     private String nomeSensor;
     private Long sateliteId;
     private String nomeSatelite;
+    private Double latitude;
+    private Double longitude;
+    private QualidadeLeitura qualidade;
 }

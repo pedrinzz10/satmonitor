@@ -1,5 +1,7 @@
 package br.com.fiap.satmonitor.leitura.service;
 
+import br.com.fiap.satmonitor.alerta.entity.Alerta;
+import br.com.fiap.satmonitor.alerta.repository.AlertaRepository;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.exception.AcessoNegadoException;
 import br.com.fiap.satmonitor.exception.EntityNotFoundException;
@@ -33,6 +35,7 @@ public class LeituraService {
     private final SateliteRepository sateliteRepository;
     private final StatusCalculator statusCalculator;
     private final OperadorMissaoRepository operadorMissaoRepository;
+    private final AlertaRepository alertaRepository;
 
     @Transactional
     public LeituraResponse criar(LeituraRequest req) {
@@ -46,12 +49,21 @@ public class LeituraService {
                 .dataHoraLeitura(LocalDateTime.now())
                 .status(status)
                 .sensor(sensor)
+                .latitude(req.latitude())
+                .longitude(req.longitude())
+                .qualidade(req.qualidade())
                 .build();
 
         leituraRepository.save(leitura);
 
         if (status == StatusLeitura.ALERTA || status == StatusLeitura.CRITICO) {
             log.warn("Leitura {} para sensor '{}' — status: {}", leitura.getId(), sensor.getNome(), status);
+            alertaRepository.save(Alerta.builder()
+                    .leitura(leitura)
+                    .tipoAlerta(status.name())
+                    .descricao("Sensor '" + sensor.getNome() + "': valor " + leitura.getValor()
+                            + " fora dos limites [" + sensor.getLimiteMin() + ", " + sensor.getLimiteMax() + "]")
+                    .build());
         }
 
         return toResponse(leitura);
@@ -125,6 +137,9 @@ public class LeituraService {
                 .nomeSensor(sensor.getNome())
                 .sateliteId(sensor.getSatelite().getId())
                 .nomeSatelite(sensor.getSatelite().getNome())
+                .latitude(leitura.getLatitude())
+                .longitude(leitura.getLongitude())
+                .qualidade(leitura.getQualidade())
                 .build();
     }
 }

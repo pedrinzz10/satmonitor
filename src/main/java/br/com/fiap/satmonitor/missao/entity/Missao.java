@@ -1,5 +1,6 @@
 package br.com.fiap.satmonitor.missao.entity;
 
+import br.com.fiap.satmonitor.agencia.entity.Agencia;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.missao.enums.StatusMissao;
 import jakarta.persistence.*;
@@ -43,6 +44,16 @@ public class Missao {
 
     @Column(nullable = false)
     private String senhaMissao;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "agencia_id")
+    private Agencia agencia;
+
+    @Column(name = "objetivo", length = 500)
+    private String objetivo;
+
+    @Column(name = "data_fim_prevista")
+    private LocalDate dataFimPrevista;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "operador_dono_id")

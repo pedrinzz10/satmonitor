@@ -1,0 +1,17 @@
+package br.com.fiap.satmonitor.alerta.repository;
+
+import br.com.fiap.satmonitor.alerta.entity.Alerta;
+import br.com.fiap.satmonitor.alerta.enums.StatusAlerta;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface AlertaRepository extends JpaRepository<Alerta, Long> {
+
+    @Query("SELECT a FROM Alerta a WHERE a.leitura.sensor.satelite.id = :sateliteId")
+    Page<Alerta> findBySateliteId(@Param("sateliteId") Long sateliteId, Pageable pageable);
+
+    Page<Alerta> findByStatusAlerta(StatusAlerta statusAlerta, Pageable pageable);
+}
