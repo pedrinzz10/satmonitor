@@ -64,6 +64,12 @@ public class GlobalExceptionHandler {
                 .body(buildErro(400, "Corpo da requisição inválido ou mal formatado", req));
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErroResponse> handleTooManyRequests(TooManyRequestsException ex, HttpServletRequest req) {
+        log.warn("Rate limit atingido: {}", ex.getMessage());
+        return ResponseEntity.status(429).body(buildErro(429, ex.getMessage(), req));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErroResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest req) {
         log.warn(ex.getMessage());

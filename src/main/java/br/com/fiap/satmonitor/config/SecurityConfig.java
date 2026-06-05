@@ -15,6 +15,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -30,8 +33,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(headers ->
-                        headers.frameOptions(frame -> frame.sameOrigin()))
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'"))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31_536_000)
+                                .requestMatcher(new AntPathRequestMatcher("/**")))
+                        .referrerPolicy(referrer -> referrer
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .addHeaderWriter(new StaticHeadersWriter(
+                                "Permissions-Policy", "geolocation=(), microphone=(), camera=()")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/registrar").permitAll()
                         .requestMatchers(HttpMethod.GET,
@@ -39,7 +52,7 @@ public class SecurityConfig {
                                 "/agencias/**", "/alertas/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/leituras").permitAll()
                         .requestMatchers(
-                                "/h2-console/**", "/swagger-ui/**", "/swagger-ui.html",
+                                "/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs/**", "/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )

@@ -5,11 +5,12 @@ import br.com.fiap.satmonitor.satelite.enums.TipoOrbita;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
 public record SateliteRequest(
-        @NotBlank String nome,
+        @NotBlank @Size(max = 255) String nome,
         @NotNull LocalDate dataLancamento,
         @NotNull Long missaoId,
         @NotNull @Valid CoordenadasOrbitaisRequest coordenadas,

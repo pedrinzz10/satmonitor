@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 public record MissaoRequest(
-        @NotBlank String nome,
+        @NotBlank @Size(max = 255) String nome,
         String descricao,
         @NotNull LocalDate dataLancamento,
         @NotNull StatusMissao status,
