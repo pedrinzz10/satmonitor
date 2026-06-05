@@ -30,7 +30,7 @@
   ],
   "item": [
     {
-      "name": "0. Agências",
+      "name": "4. Agências",
       "item": [
         {
           "name": "Criar agência NASA → 201 | salva agencia_id",
@@ -264,7 +264,7 @@
       ]
     },
     {
-      "name": "4. Missões — CRUD",
+      "name": "5. Missões — CRUD",
       "item": [
         {
           "name": "Criar missão (dono) → 201 | salva missao_id",
@@ -360,7 +360,7 @@
       ]
     },
     {
-      "name": "5. Missões — Entrar e Sair",
+      "name": "6. Missões — Entrar e Sair",
       "item": [
         {
           "name": "Senha errada → 401",
@@ -495,7 +495,7 @@
       ]
     },
     {
-      "name": "6. Missões — Membros",
+      "name": "7. Missões — Membros",
       "item": [
         {
           "name": "Forasteiro tenta listar membros → 403",
@@ -634,7 +634,7 @@
       ]
     },
     {
-      "name": "7. Satélites",
+      "name": "8. Satélites",
       "item": [
         {
           "name": "Membro re-entra na missão → 200",
@@ -830,7 +830,7 @@
       ]
     },
     {
-      "name": "8. Sensores — Criação dos 4 tipos",
+      "name": "9. Sensores — Criação dos 4 tipos",
       "item": [
         {
           "name": "POST TERMICO → 201 | detalhe=CELSIUS | salva sensor_termico_id",
@@ -897,7 +897,7 @@
       ]
     },
     {
-      "name": "9. Sensores — Validações",
+      "name": "10. Sensores — Validações",
       "item": [
         {
           "name": "limiteMin >= limiteMax → 400",
@@ -1023,7 +1023,7 @@
       ]
     },
     {
-      "name": "10. Leituras — StatusCalculator",
+      "name": "11. Leituras — StatusCalculator",
       "description": "Sensor Térmico após PUT: limiteMin=-10, limiteMax=90, margemAlerta=5%\nzonaAlertaMin=-5.0 | zonaAlertaMax=85.0",
       "item": [
         {
@@ -1165,7 +1165,7 @@
       ]
     },
     {
-      "name": "11. Leituras — Consultas e Filtros",
+      "name": "12. Leituras — Consultas e Filtros",
       "item": [
         {
           "name": "GET todas as leituras → 200 | totalElements >= 7",
@@ -1255,7 +1255,7 @@
       ]
     },
     {
-      "name": "12. Estatísticas após leituras",
+      "name": "13. Estatísticas após leituras",
       "item": [
         {
           "name": "GET estatísticas com leituras → 200",
@@ -1273,7 +1273,7 @@
       ]
     },
     {
-      "name": "13. Alertas",
+      "name": "14. Alertas",
       "item": [
         {
           "name": "GET todos os alertas (público) → 200",
@@ -1354,7 +1354,7 @@
       ]
     },
     {
-      "name": "14. Leituras — Exclusão",
+      "name": "15. Leituras — Exclusão",
       "item": [
         {
           "name": "Sem token → 403",
@@ -1389,7 +1389,7 @@
       ]
     },
     {
-      "name": "15. Sensores — Exclusão",
+      "name": "16. Sensores — Exclusão",
       "item": [
         {
           "name": "SUPERVISOR tenta deletar sensor → 403",
@@ -1417,7 +1417,7 @@
       ]
     },
     {
-      "name": "16. Satélites — Exclusão",
+      "name": "17. Satélites — Exclusão",
       "item": [
         {
           "name": "Criar satélite descartável → 201 | salva sat_descartavel_id",
@@ -1451,7 +1451,7 @@
       ]
     },
     {
-      "name": "17. Missões — Exclusão",
+      "name": "18. Missões — Exclusão",
       "item": [
         {
           "name": "SUPERVISOR tenta deletar missão → 403",
