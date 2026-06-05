@@ -81,13 +81,20 @@ zonaAlertaMax =  90 - (100 × 0.05) = 85.0
 
 ---
 
-## Teste via script bash (alternativa ao Postman)
+## Teste via script (alternativa ao Postman)
 
-Para rodar a bateria completa no terminal (requer `curl` e `jq`):
+Para rodar a bateria completa no terminal, há dois scripts equivalentes:
 
-```bash
-chmod +x TestApiControllers/test-api.sh
-./TestApiControllers/test-api.sh
+**PowerShell (recomendado no Windows):**
+```powershell
+.\testControllers\test-api.ps1
 ```
 
-As seções do script seguem a mesma numeração das pastas da coleção (1–18).
+**Bash (Git Bash no Windows, terminal no Linux/macOS):**
+```bash
+chmod +x testControllers/test-api.sh
+./testControllers/test-api.sh
+```
+
+As seções seguem a mesma numeração das pastas da coleção (1–18).
+Veja `testControllers/COMO_EXECUTAR.md` para pré-requisitos de cada opção.

@@ -1,62 +1,71 @@
 # SatMonitor — Como executar o script de testes
 
-## Pré-requisitos
+Há dois scripts equivalentes. Use o que for mais conveniente para o seu sistema:
 
-| Ferramenta | Como verificar | Instalação |
+| Script | Pré-requisitos | Sistema |
 |---|---|---|
-| Aplicação rodando | `curl http://localhost:8080/actuator/health` | `.\gradlew bootRun` na raiz |
-| Git Bash (Windows) | abrir "Git Bash" no menu iniciar | vem com o [Git for Windows](https://git-scm.com/download/win) |
-| `jq` | `jq --version` no Git Bash | veja abaixo |
-
-> **Por que Git Bash?** O script `test-api.sh` é um script Bash. O PowerShell do Windows não executa Bash nativamente. O Git Bash é o jeito mais simples — ele já vem instalado se você tem Git no Windows.
+| `test-api.ps1` | PowerShell 7+ (já vem no Windows 11) | Windows |
+| `test-api.sh` | Git Bash + `jq` | Windows/macOS/Linux |
 
 ---
 
-## Instalar o jq no Windows (Git Bash)
+## Opção A — PowerShell (recomendado no Windows)
 
-`jq` é usado para extrair campos do JSON das respostas da API.
+### 1. Verifique a versão do PowerShell
 
-```bash
-# Baixe o executável direto do GitHub (64-bit)
-curl -L -o /usr/local/bin/jq https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe
-chmod +x /usr/local/bin/jq
-
-# Verifique
-jq --version
+```powershell
+$PSVersionTable.PSVersion
 ```
 
----
+Requer **7.0 ou superior**. Se for menor, baixe em: https://github.com/PowerShell/PowerShell/releases
 
-## Passo a passo para executar
-
-### 1. Suba a aplicação (PowerShell ou terminal qualquer)
+### 2. Suba a aplicação
 
 ```powershell
 .\gradlew bootRun
 ```
 
-Aguarde aparecer a mensagem `Started SatmonitorApplication`. A API ficará disponível em `http://localhost:8080`.
+Aguarde `Started SatmonitorApplication`. A API ficará disponível em `http://localhost:8080`.
 
-> O banco H2 é em memória (`ddl-auto=create-drop`). **Reinicie a aplicação antes de cada rodada do script** para garantir banco limpo.
+> O banco H2 é em memória (`ddl-auto=create-drop`). **Reinicie a aplicação antes de cada rodada** para garantir banco limpo.
 
-### 2. Abra o Git Bash
+### 3. Execute o script
 
-No Windows: clique com o botão direito na pasta do projeto → **"Git Bash Here"**  
-ou abra o Git Bash e navegue até o projeto:
-
-```bash
-cd /c/FIAP/satmonitor
+```powershell
+.\testControllers\test-api.ps1
 ```
 
-### 3. Dê permissão de execução (apenas na primeira vez)
+Se o PowerShell bloquear por política de execução, rode antes:
 
-```bash
-chmod +x testControllers/test-api.sh
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### 4. Execute o script
+---
+
+## Opção B — Bash (Git Bash no Windows, terminal no Linux/macOS)
+
+### Pré-requisitos
+
+| Ferramenta | Como verificar | Instalação |
+|---|---|---|
+| Git Bash | abrir no menu iniciar | vem com o [Git for Windows](https://git-scm.com/download/win) |
+| `jq` | `jq --version` no Git Bash | veja abaixo |
+
+### Instalar o jq no Windows (Git Bash)
 
 ```bash
+curl -L -o /usr/local/bin/jq https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe
+chmod +x /usr/local/bin/jq
+jq --version
+```
+
+### Executar
+
+No Windows: clique com o botão direito na pasta do projeto → **"Git Bash Here"**
+
+```bash
+chmod +x testControllers/test-api.sh   # apenas na primeira vez
 ./testControllers/test-api.sh
 ```
 
