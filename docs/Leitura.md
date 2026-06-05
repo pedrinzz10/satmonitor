@@ -32,7 +32,10 @@ curl -s -X POST http://localhost:8080/leituras \
   -H "Content-Type: application/json" \
   -d '{
     "valor": 95.3,
-    "sensorId": 1
+    "sensorId": 1,
+    "latitude": -23.5505,
+    "longitude": -46.6333,
+    "qualidade": "BOA"
   }'
 ```
 
@@ -47,6 +50,9 @@ curl -s -X POST http://localhost:8080/leituras \
   "nomeSensor": "Termometro Principal",
   "sateliteId": 1,
   "nomeSatelite": "SAT-01",
+  "latitude": -23.5505,
+  "longitude": -46.6333,
+  "qualidade": "BOA",
   "_links": {
     "self": { "href": "http://localhost:8080/leituras/42" },
     "deletar": { "href": "http://localhost:8080/leituras/42" },
@@ -62,8 +68,12 @@ curl -s -X POST http://localhost:8080/leituras \
 |-------|------|:-----------:|-----------|
 | `valor` | Double | Sim | Valor medido pelo sensor |
 | `sensorId` | Long | Sim | ID do sensor que originou a leitura |
+| `latitude` | Double | Não | Posição geográfica no momento da leitura |
+| `longitude` | Double | Não | Posição geográfica no momento da leitura |
+| `qualidade` | Enum | Não | `BOA` (padrão), `DEGRADADA` ou `INVALIDA` |
 
-> **Nunca enviar:** `status` e `dataHoraLeitura` — ambos são calculados/definidos pelo servidor e ignorados se enviados.
+> **Nunca enviar:** `status` e `dataHoraLeitura` — calculados/definidos pelo servidor.  
+> Os campos opcionais podem ser omitidos — o ESP32 pode enviar somente `valor` e `sensorId`.
 
 ---
 
@@ -209,6 +219,22 @@ curl -s "http://localhost:8080/leituras/satelite/1?status=CRITICO"
   "size": 20
 }
 ```
+
+---
+
+## Geração automática de alertas
+
+Sempre que uma leitura recebe status `ALERTA` ou `CRITICO`, a API cria automaticamente um registro em `TB_ALERTA`:
+
+```
+POST /leituras { valor: 150.0, sensorId: 1 }
+    ↓ StatusCalculator → CRITICO
+    ↓ LeituraSensor salva
+    ↓ Alerta criado automaticamente (statusAlerta=ATIVO)
+    ↓ Disponível em GET /alertas
+```
+
+Leituras `NORMAL` não geram alerta. Ver [`docs/Alerta.md`](Alerta.md) para o ciclo de vida completo.
 
 ---
 

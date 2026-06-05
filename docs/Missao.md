@@ -53,7 +53,10 @@ curl -s -X POST http://localhost:8080/missoes \
     "descricao": "Missão de monitoramento orbital 2026",
     "dataLancamento": "2026-06-01",
     "status": "PLANEJADA",
-    "senhaMissao": "acesso123"
+    "senhaMissao": "acesso123",
+    "agenciaId": 1,
+    "objetivo": "Monitoramento de órbita baixa",
+    "dataFimPrevista": "2027-12-31"
   }'
 ```
 
@@ -68,6 +71,10 @@ curl -s -X POST http://localhost:8080/missoes \
   "roleDoOperador": "DONO",
   "totalMembros": 1,
   "totalSatelites": 0,
+  "agenciaId": 1,
+  "nomeAgencia": "NASA",
+  "objetivo": "Monitoramento de órbita baixa",
+  "dataFimPrevista": "2027-12-31",
   "_links": {
     "self": { "href": "http://localhost:8080/missoes/1" },
     "membros": { "href": "http://localhost:8080/missoes/1/membros" },
@@ -86,9 +93,13 @@ curl -s -X POST http://localhost:8080/missoes \
 | `descricao` | String | Não | Descrição detalhada |
 | `dataLancamento` | LocalDate (`yyyy-MM-dd`) | Sim | Data de lançamento |
 | `status` | Enum | Sim | `PLANEJADA`, `ATIVA` ou `ENCERRADA` |
-| `senhaMissao` | String | Sim | Senha para outros operadores entrarem |
+| `senhaMissao` | String | Sim (mín. 6 chars) | Senha para outros operadores entrarem |
+| `agenciaId` | Long | Não | ID da agência responsável — 404 se não existir |
+| `objetivo` | String | Não | Objetivo da missão |
+| `dataFimPrevista` | LocalDate (`yyyy-MM-dd`) | Não | Data prevista de encerramento |
 
-> A `senhaMissao` é salva com BCrypt e **nunca aparece em nenhuma resposta**.
+> A `senhaMissao` é salva com BCrypt e **nunca aparece em nenhuma resposta**.  
+> Campos opcionais (`agenciaId`, `objetivo`, `dataFimPrevista`) podem ser omitidos — vêm como `null` na resposta.
 
 ---
 
@@ -145,11 +156,15 @@ curl -s -X PUT http://localhost:8080/missoes/1 \
     "nome": "Missao Alpha v2",
     "descricao": "Descrição atualizada",
     "dataLancamento": "2026-07-01",
-    "status": "ATIVA"
+    "status": "ATIVA",
+    "agenciaId": 2,
+    "objetivo": "Objetivo atualizado",
+    "dataFimPrevista": "2028-06-01"
   }'
 ```
 
-> O `PUT` não aceita `senhaMissao` — a senha não é alterável por este endpoint.
+> O `PUT` não aceita `senhaMissao` — a senha não é alterável por este endpoint.  
+> Os campos opcionais podem ser enviados, removidos (enviando `null`) ou simplesmente omitidos.
 
 ### Excluir (apenas DONO)
 

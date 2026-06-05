@@ -9,10 +9,13 @@ API Java para monitoramento de satélites em órbita. Desenvolvida como Global S
 Uma estação terrestre cria **missões espaciais**, cada missão agrupa **satélites**, cada satélite carrega **sensores**, e cada sensor gera **leituras** contínuas. Quando uma leitura ultrapassa os limites configurados, a API classifica automaticamente como **NORMAL**, **ALERTA** ou **CRÍTICO** — sem nenhuma intervenção manual.
 
 ```
-Missao → Satelite → Sensor → LeituraSensor
-                                    ↑
-                            classificação automática:
-                            NORMAL | ALERTA | CRITICO
+Agencia → Missao → Satelite → Sensor → LeituraSensor
+                                               ↓
+                                           StatusCalculator
+                                               ↓
+                                        NORMAL | ALERTA | CRITICO
+                                               ↓ (se ALERTA ou CRITICO)
+                                             Alerta  →  trigger Oracle (PL/SQL)
 ```
 
 ---
@@ -120,6 +123,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 **Rotas públicas (sem token):**
 - `POST /auth/login` e `POST /auth/registrar`
 - Todos os `GET /satelites/**`, `GET /sensores/**`, `GET /leituras/**`
+- `GET /agencias/**`, `GET /alertas/**`
 - `POST /leituras` — ESP32 (IoT) envia leituras sem token
 - `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`
 
@@ -146,6 +150,15 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 ---
 
 ## Todos os endpoints
+
+### Agências
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| POST | `/agencias` | ✓ | Cria agência espacial |
+| GET | `/agencias` | — | Lista paginada |
+| GET | `/agencias/{id}` | — | Busca por id |
+| PUT | `/agencias/{id}` | ✓ | Atualiza |
+| DELETE | `/agencias/{id}` | ✓ | Remove |
 
 ### Auth
 | Método | Rota | Auth | Descrição |
@@ -198,6 +211,14 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 | GET | `/leituras/satelite/{sateliteId}` | — | — |
 | DELETE | `/leituras/{id}` | ✓ | SUPERVISOR |
 
+### Alertas
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| GET | `/alertas` | — | Lista todos (filtro `?status=ATIVO\|RECONHECIDO\|RESOLVIDO`) |
+| GET | `/alertas/{id}` | — | Busca por id |
+| GET | `/alertas/satelite/{sateliteId}` | — | Alertas de um satélite |
+| PATCH | `/alertas/{id}?novoStatus=X` | ✓ | Reconhece ou resolve o alerta |
+
 ---
 
 ## Tipos de sensor
@@ -238,16 +259,18 @@ Todos os erros seguem o mesmo formato:
 ## Modelo de dados simplificado
 
 ```
+TB_AGENCIA             ← agência espacial (opcional em Missao)
 TB_OPERADOR
-TB_MISSAO              ← senha protegida por BCrypt
+TB_MISSAO              ← senha BCrypt | FK opcional p/ TB_AGENCIA
 TB_OPERADOR_MISSAO     ← junction table com role (DONO/SUPERVISOR/MEMBRO)
-TB_SATELITE            ← coordenadas embutidas via @Embeddable
+TB_SATELITE            ← coordenadas @Embeddable | tipoOrbita | statusSatelite
 TB_SENSOR              ← base (herança JOINED)
   TB_SENSOR_TERMICO
   TB_SENSOR_PRESSAO
   TB_SENSOR_RADIACAO
   TB_MAGNETOMETRO
-TB_LEITURA_SENSOR      ← status calculado pelo servidor, nunca pelo cliente
+TB_LEITURA_SENSOR      ← status calculado pelo servidor | latitude/longitude | qualidade
+TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger Oracle
 ```
 
 ---
@@ -257,13 +280,15 @@ TB_LEITURA_SENSOR      ← status calculado pelo servidor, nunca pelo cliente
 | Arquivo | Conteúdo |
 |---------|---------|
 | [`docs/Auth.md`](docs/Auth.md) | JWT, registro, login, filtro de segurança |
+| [`docs/Agencia.md`](docs/Agencia.md) | Agências espaciais — CRUD e vínculo com missões |
 | [`docs/Missao.md`](docs/Missao.md) | Roles, endpoints de missão, fluxos de entrada/saída |
-| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, estatísticas |
+| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, tipo de órbita, estatísticas |
 | [`docs/Sensor.md`](docs/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
-| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, filtros |
+| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, geração automática de alertas |
+| [`docs/Alerta.md`](docs/Alerta.md) | Alertas automáticos, ciclo de vida, integração Oracle |
 | [`docs/Exception.md`](docs/Exception.md) | Mapa de erros, como adicionar nova exceção |
 | [`docs/MissaoService.md`](docs/MissaoService.md) | Fluxos internos do service de missões |
-| [`docs/Testes.md`](docs/Testes.md) | Guia de testes manuais com curl |
+| [`docs/Testes.md`](docs/Testes.md) | Coleção Postman importável com testes automáticos |
 
 ---
 

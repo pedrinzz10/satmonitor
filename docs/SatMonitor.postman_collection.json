@@ -7,6 +7,7 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "agencia_id", "value": "" },
     { "key": "token_dono", "value": "" },
     { "key": "token_membro", "value": "" },
     { "key": "token_supervisor", "value": "" },
@@ -23,10 +24,92 @@
     { "key": "sensor_radiacao_id", "value": "" },
     { "key": "sensor_mag_id", "value": "" },
     { "key": "leitura_normal_id", "value": "" },
+    { "key": "alerta_id", "value": "" },
     { "key": "leitura_alerta_id", "value": "" },
     { "key": "leitura_critico_id", "value": "" }
   ],
   "item": [
+    {
+      "name": "0. Agências",
+      "item": [
+        {
+          "name": "Criar agência NASA → 201 | salva agencia_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('agencia_id', pm.response.json().id);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"NASA\",\n  \"siglaPais\": \"US\",\n  \"tipoAgencia\": \"GOVERNAMENTAL\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/agencias", "host": ["{{baseUrl}}"], "path": ["agencias"] }
+          }
+        },
+        {
+          "name": "Criar agência ESA → 201",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 201', () => pm.response.to.have.status(201));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"ESA\",\n  \"siglaPais\": \"EU\",\n  \"tipoAgencia\": \"GOVERNAMENTAL\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/agencias", "host": ["{{baseUrl}}"], "path": ["agencias"] }
+          }
+        },
+        {
+          "name": "siglaPais inválida (3 chars) → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"INPE\",\n  \"siglaPais\": \"BRA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/agencias", "host": ["{{baseUrl}}"], "path": ["agencias"] }
+          }
+        },
+        {
+          "name": "GET todas as agências (público) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 1', () => pm.expect(pm.response.json().totalElements).to.be.at.least(1));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/agencias", "host": ["{{baseUrl}}"], "path": ["agencias"] } }
+        },
+        {
+          "name": "GET agência por id → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Nome NASA', () => pm.expect(pm.response.json().nome).to.equal('NASA'));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/agencias/{{agencia_id}}", "host": ["{{baseUrl}}"], "path": ["agencias", "{{agencia_id}}"] } }
+        },
+        {
+          "name": "PUT atualizar agência → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"NASA — National Aeronautics\",\n  \"siglaPais\": \"US\",\n  \"tipoAgencia\": \"GOVERNAMENTAL\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/agencias/{{agencia_id}}", "host": ["{{baseUrl}}"], "path": ["agencias", "{{agencia_id}}"] }
+          }
+        },
+        {
+          "name": "GET agência inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/agencias/99999", "host": ["{{baseUrl}}"], "path": ["agencias", "99999"] } }
+        }
+      ]
+    },
     {
       "name": "1. Health Check",
       "item": [
@@ -196,7 +279,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
-            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Missao Alpha\",\n  \"descricao\": \"Missao principal de testes\",\n  \"dataLancamento\": \"2026-06-01\",\n  \"status\": \"PLANEJADA\",\n  \"senhaMissao\": \"senha123\"\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Missao Alpha\",\n  \"descricao\": \"Missao principal de testes\",\n  \"dataLancamento\": \"2026-06-01\",\n  \"status\": \"PLANEJADA\",\n  \"senhaMissao\": \"senha123\",\n  \"agenciaId\": {{agencia_id}},\n  \"objetivo\": \"Monitoramento de orbita baixa\",\n  \"dataFimPrevista\": \"2027-12-31\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/missoes", "host": ["{{baseUrl}}"], "path": ["missoes"] }
           }
         },
@@ -606,7 +689,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
-            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5,\n    \"longitudeNodo\": 12.3\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"nome\": \"SAT-01\",\n  \"dataLancamento\": \"2026-01-15\",\n  \"missaoId\": {{missao_id}},\n  \"coordenadas\": {\n    \"altitudeKm\": 550.0,\n    \"inclinacao\": 53.5,\n    \"longitudeNodo\": 12.3\n  },\n  \"tipoOrbita\": \"LEO\",\n  \"statusSatelite\": \"ATIVO\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/satelites", "host": ["{{baseUrl}}"], "path": ["satelites"] }
           }
         },
@@ -951,13 +1034,15 @@
             "pm.test('status=NORMAL', () => pm.expect(json.status).to.equal('NORMAL'));",
             "pm.test('dataHoraLeitura preenchida', () => pm.expect(json.dataHoraLeitura).to.be.a('string').and.not.empty);",
             "pm.test('HATEOAS presente', () => pm.expect(json).to.have.property('_links'));",
+            "pm.test('latitude salva', () => pm.expect(json.latitude).to.equal(-23.5505));",
+            "pm.test('qualidade=BOA', () => pm.expect(json.qualidade).to.equal('BOA'));",
             "pm.collectionVariables.set('leitura_normal_id', json.id);"
           ]}}],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "auth": { "type": "noauth" },
-            "body": { "mode": "raw", "raw": "{\n  \"valor\": 40.0,\n  \"sensorId\": {{sensor_termico_id}}\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"valor\": 40.0,\n  \"sensorId\": {{sensor_termico_id}},\n  \"latitude\": -23.5505,\n  \"longitude\": -46.6333,\n  \"qualidade\": \"BOA\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/leituras", "host": ["{{baseUrl}}"], "path": ["leituras"] }
           }
         },
@@ -977,11 +1062,19 @@
           }
         },
         {
-          "name": "150.0 → CRITICO acima limiteMax | salva leitura_critico_id",
+          "name": "150.0 → CRITICO acima limiteMax | salva leitura_critico_id + alerta_id",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('Status 201', () => pm.response.to.have.status(201));",
             "pm.test('status=CRITICO', () => pm.expect(pm.response.json().status).to.equal('CRITICO'));",
-            "pm.collectionVariables.set('leitura_critico_id', pm.response.json().id);"
+            "pm.collectionVariables.set('leitura_critico_id', pm.response.json().id);",
+            "// Aguardar e buscar o alerta gerado automaticamente",
+            "setTimeout(() => {",
+            "  pm.sendRequest({ url: pm.collectionVariables.get('baseUrl') + '/alertas?size=1&sort=dataAlerta,desc', method: 'GET' }, (err, res) => {",
+            "    if (!err && res.json().content && res.json().content.length > 0) {",
+            "      pm.collectionVariables.set('alerta_id', res.json().content[0].id);",
+            "    }",
+            "  });",
+            "}, 300);"
           ]}}],
           "request": {
             "method": "POST",
@@ -1180,7 +1273,88 @@
       ]
     },
     {
-      "name": "13. Leituras — Exclusão",
+      "name": "13. Alertas",
+      "item": [
+        {
+          "name": "GET todos os alertas (público) → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('totalElements >= 2', () => pm.expect(pm.response.json().totalElements).to.be.at.least(2));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/alertas", "host": ["{{baseUrl}}"], "path": ["alertas"] } }
+        },
+        {
+          "name": "GET alertas status=ATIVO → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Todos ATIVO', () => {",
+            "  const content = pm.response.json().content;",
+            "  if (content.length > 0) pm.expect(content[0].statusAlerta).to.equal('ATIVO');",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/alertas?status=ATIVO", "host": ["{{baseUrl}}"], "path": ["alertas"], "query": [{ "key": "status", "value": "ATIVO" }] } }
+        },
+        {
+          "name": "GET alerta por id → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('tipoAlerta presente', () => pm.expect(pm.response.json().tipoAlerta).to.be.oneOf(['ALERTA','CRITICO']));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/alertas/{{alerta_id}}", "host": ["{{baseUrl}}"], "path": ["alertas", "{{alerta_id}}"] } }
+        },
+        {
+          "name": "GET alertas do satélite → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/alertas/satelite/{{sat_id}}", "host": ["{{baseUrl}}"], "path": ["alertas", "satelite", "{{sat_id}}"] } }
+        },
+        {
+          "name": "GET alertas satélite inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": { "raw": "{{baseUrl}}/alertas/satelite/99999", "host": ["{{baseUrl}}"], "path": ["alertas", "satelite", "99999"] } }
+        },
+        {
+          "name": "PATCH reconhecer alerta → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('statusAlerta=RECONHECIDO', () => pm.expect(pm.response.json().statusAlerta).to.equal('RECONHECIDO'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_supervisor}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/alertas/{{alerta_id}}?novoStatus=RECONHECIDO", "host": ["{{baseUrl}}"], "path": ["alertas", "{{alerta_id}}"], "query": [{ "key": "novoStatus", "value": "RECONHECIDO" }] }
+          }
+        },
+        {
+          "name": "PATCH resolver alerta → 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('statusAlerta=RESOLVIDO', () => pm.expect(pm.response.json().statusAlerta).to.equal('RESOLVIDO'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token_dono}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/alertas/{{alerta_id}}?novoStatus=RESOLVIDO", "host": ["{{baseUrl}}"], "path": ["alertas", "{{alerta_id}}"], "query": [{ "key": "novoStatus", "value": "RESOLVIDO" }] }
+          }
+        },
+        {
+          "name": "PATCH sem token → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/alertas/{{alerta_id}}?novoStatus=RESOLVIDO", "host": ["{{baseUrl}}"], "path": ["alertas", "{{alerta_id}}"], "query": [{ "key": "novoStatus", "value": "RESOLVIDO" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Leituras — Exclusão",
       "item": [
         {
           "name": "Sem token → 403",
@@ -1215,7 +1389,7 @@
       ]
     },
     {
-      "name": "14. Sensores — Exclusão",
+      "name": "15. Sensores — Exclusão",
       "item": [
         {
           "name": "SUPERVISOR tenta deletar sensor → 403",
@@ -1243,7 +1417,7 @@
       ]
     },
     {
-      "name": "15. Satélites — Exclusão",
+      "name": "16. Satélites — Exclusão",
       "item": [
         {
           "name": "Criar satélite descartável → 201 | salva sat_descartavel_id",
@@ -1277,7 +1451,7 @@
       ]
     },
     {
-      "name": "16. Missões — Exclusão",
+      "name": "17. Missões — Exclusão",
       "item": [
         {
           "name": "SUPERVISOR tenta deletar missão → 403",

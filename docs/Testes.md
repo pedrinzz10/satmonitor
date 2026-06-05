@@ -15,22 +15,24 @@ A coleção usa **Collection Variables** internas. Não é necessário criar Env
 
 | Pasta | O que testa |
 |-------|------------|
+| 0. Agências | CRUD de agências + erros de validação |
 | 1. Health Check | API está no ar |
 | 2. Auth — Registro | Criar 4 operadores + erros (duplicado, campo vazio) |
 | 3. Auth — Login e Tokens | Login dos 4 operadores → salva `token_*` automaticamente |
-| 4. Missões — CRUD | Criar, listar, buscar, atualizar + controle de acesso |
+| 4. Missões — CRUD | Criar com agência, listar, buscar, atualizar + controle de acesso |
 | 5. Missões — Entrar e Sair | Senha errada/correta, já membro, regra do DONO único |
 | 6. Missões — Membros | Listar, promover, rebaixar, remover + restrições |
-| 7. Satélites | CRUD completo, GETs públicos, estatísticas sem leituras |
+| 7. Satélites | CRUD com tipoOrbita/statusSatelite, GETs públicos, estatísticas |
 | 8. Sensores — Criação | Um request para cada um dos 4 tipos |
 | 9. Sensores — Validações | limiteMin≥limiteMax, tipo inválido, campo ausente, duplicado |
-| 10. Leituras — StatusCalculator | 7 valores de fronteira + erros |
+| 10. Leituras — StatusCalculator | 7 valores de fronteira + erros + verificação de alertas gerados |
 | 11. Leituras — Consultas | Listagem, filtros `?status=`, sensor/satélite inexistente |
 | 12. Estatísticas | Agrega leituras dos sensores do satélite |
-| 13. Leituras — Exclusão | Controle de acesso: sem token → MEMBRO → SUPERVISOR → DONO |
-| 14. Sensores — Exclusão | SUPERVISOR bloqueado, DONO deleta em cascade |
-| 15. Satélites — Exclusão | SUPERVISOR bloqueado, DONO deleta em cascade |
-| 16. Missões — Exclusão | Saída voluntária, DONO deleta missão |
+| 13. Alertas | Listar, filtrar por status, buscar por satélite, reconhecer/resolver |
+| 14. Leituras — Exclusão | Controle de acesso: sem token → MEMBRO → SUPERVISOR → DONO |
+| 15. Sensores — Exclusão | SUPERVISOR bloqueado, DONO deleta em cascade |
+| 16. Satélites — Exclusão | SUPERVISOR bloqueado, DONO deleta em cascade |
+| 17. Missões — Exclusão | Saída voluntária, DONO deleta missão |
 
 ---
 
@@ -38,6 +40,7 @@ A coleção usa **Collection Variables** internas. Não é necessário criar Env
 
 | Variável | Salva em |
 |----------|---------|
+| `agencia_id` | Pasta 0 — Criar agência |
 | `token_dono`, `token_membro`, `token_supervisor`, `token_forasteiro` | Pasta 3 — Login |
 | `missao_id` | Pasta 4 — Criar missão |
 | `missao_solo_id` | Pasta 5 — Criar missão solo |
@@ -45,7 +48,8 @@ A coleção usa **Collection Variables** internas. Não é necessário criar Env
 | `sat_id` | Pasta 7 — Criar satélite |
 | `sensor_termico_id`, `sensor_pressao_id`, `sensor_radiacao_id`, `sensor_mag_id` | Pasta 8 — Criar sensores |
 | `leitura_normal_id`, `leitura_alerta_id`, `leitura_critico_id` | Pasta 10 — StatusCalculator |
-| `sat_descartavel_id` | Pasta 15 — Criar satélite descartável |
+| `alerta_id` | Pasta 10 — Alerta gerado automaticamente |
+| `sat_descartavel_id` | Pasta 16 — Criar satélite descartável |
 
 ---
 
