@@ -381,6 +381,7 @@ TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger 
 | [`docs/Exception.md`](docs/Exception.md) | Mapa de erros, como adicionar nova exceção |
 | [`docs/MissaoService.md`](docs/MissaoService.md) | Fluxos internos do service de missões |
 | [`docs/Testes.md`](docs/Testes.md) | Coleção Postman importável com testes automáticos |
+| [`docs/Deploy.md`](docs/Deploy.md) | Passo a passo: Docker + Azure VM + Oracle remoto |
 
 ---
 
