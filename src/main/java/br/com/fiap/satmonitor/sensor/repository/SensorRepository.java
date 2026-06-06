@@ -10,4 +10,6 @@ public interface SensorRepository extends JpaRepository<Sensor, Long> {
     Page<Sensor> findBySateliteId(Long sateliteId, Pageable pageable);
 
     boolean existsByNomeAndSateliteId(String nome, Long sateliteId);
+
+    boolean existsByNomeAndSateliteIdAndIdNot(String nome, Long sateliteId, Long id);
 }

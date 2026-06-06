@@ -3,6 +3,7 @@ package br.com.fiap.satmonitor.alerta.controller;
 import br.com.fiap.satmonitor.alerta.dto.AlertaResponse;
 import br.com.fiap.satmonitor.alerta.enums.StatusAlerta;
 import br.com.fiap.satmonitor.alerta.service.AlertaService;
+import br.com.fiap.satmonitor.auth.entity.Operador;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
@@ -54,12 +56,13 @@ public class AlertaController {
     }
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Atualiza status do alerta — SUPERVISOR ou DONO")
+    @Operation(summary = "Atualiza status do alerta — SUPERVISOR ou DONO da missão")
     public ResponseEntity<AlertaResponse> atualizarStatus(
             @PathVariable Long id,
-            @RequestParam StatusAlerta novoStatus) {
+            @RequestParam StatusAlerta novoStatus,
+            @AuthenticationPrincipal Operador operadorLogado) {
 
-        AlertaResponse response = alertaService.atualizarStatus(id, novoStatus);
+        AlertaResponse response = alertaService.atualizarStatus(id, novoStatus, operadorLogado);
         adicionarLinks(response);
         return ResponseEntity.ok(response);
     }
@@ -68,6 +71,6 @@ public class AlertaController {
         Long id = response.getId();
         response.add(linkTo(methodOn(AlertaController.class).buscarPorId(id)).withSelfRel());
         response.add(linkTo(methodOn(AlertaController.class)
-                .atualizarStatus(id, null)).withRel("atualizar-status"));
+                .atualizarStatus(id, null, null)).withRel("atualizar-status"));
     }
 }

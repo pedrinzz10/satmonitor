@@ -309,6 +309,7 @@ PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_SUPERVISOR_ID/aprovar" $TOKEN_DONO
 assert_status "PATCH /aprovar (DONO aprova supervisor) -> 200" "200" $script:STATUS
 
 # Promover supervisor@sat.dev para SUPERVISOR na missao (entrou como MEMBRO via aprovacao)
+# (membro e supervisor ja sao membros ativos a partir daqui)
 GET "/missoes/$MISSAO_ID/membros" $TOKEN_DONO
 $ID_SUPERVISOR_TEMP = ((j) | Where-Object { $_.login -eq "supervisor@sat.dev" }).operadorId
 PATCH "/missoes/$MISSAO_ID/membros/$ID_SUPERVISOR_TEMP`?novoRole=SUPERVISOR" $TOKEN_DONO
@@ -317,6 +318,17 @@ assert_status "PATCH promover supervisor@sat.dev para SUPERVISOR (pos-aprovacao)
 # Tentar aprovar solicitacao ja processada -> 400
 PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_MEMBRO_ID/aprovar" $TOKEN_DONO
 assert_status "PATCH /aprovar solicitacao ja aprovada -> 400" "400" $script:STATUS
+
+# Membro ativo tentando solicitar entrada novamente -> 409
+POST "/missoes/$MISSAO_ID/solicitar" (@{senha="senha123"} | ConvertTo-Json -Compress) $TOKEN_MEMBRO
+assert_status "POST /solicitar operador ja membro ativo -> 409" "409" $script:STATUS
+
+# MEMBRO tentando aprovar/rejeitar (role insuficiente) -> 403
+PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_MEMBRO_ID/aprovar" $TOKEN_MEMBRO
+assert_status "PATCH /aprovar (MEMBRO tentando) -> 403" "403" $script:STATUS
+
+PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_MEMBRO_ID/rejeitar" $TOKEN_MEMBRO
+assert_status "PATCH /rejeitar (MEMBRO tentando) -> 403" "403" $script:STATUS
 
 # Habilitar cowork -> forasteiro pode solicitar
 $bodyCowork = @{nome="Missao Alpha v2";descricao="Atualizada";dataLancamento="2026-07-01";status="ATIVA";agenciaId=$AGENCIA_NASA_ID;permitirCowork=$true} | ConvertTo-Json -Compress
@@ -335,6 +347,15 @@ assert_status "GET /solicitacoes (SUPERVISOR) -> 200" "200" $script:STATUS
 
 PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_FORASTEIRO_ID/rejeitar" $TOKEN_SUPERVISOR
 assert_status "PATCH /rejeitar (SUPERVISOR rejeita forasteiro) -> 200" "200" $script:STATUS
+
+# Rejeitar solicitacao ja rejeitada -> 400
+PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_FORASTEIRO_ID/rejeitar" $TOKEN_DONO
+assert_status "PATCH /rejeitar solicitacao ja rejeitada -> 400" "400" $script:STATUS
+
+# Listar solicitacoes ja aprovadas
+GET "/missoes/$MISSAO_ID/solicitacoes`?status=APROVADO" $TOKEN_DONO
+assert_status "GET /solicitacoes?status=APROVADO (DONO) -> 200" "200" $script:STATUS
+assert_gte "Pelo menos 2 solicitacoes com status APROVADO" 2 (j).totalElements
 
 # Desabilitar cowork -> forasteiro nao pode mais solicitar
 $bodyNoCowork = @{nome="Missao Alpha v2";descricao="Atualizada";dataLancamento="2026-07-01";status="ATIVA";agenciaId=$AGENCIA_NASA_ID;permitirCowork=$false} | ConvertTo-Json -Compress
@@ -358,6 +379,10 @@ $SOL_SOLO_ID = (j).id
 
 PATCH "/missoes/$MISSAO_SOLO_ID/solicitacoes/$SOL_SOLO_ID/aprovar" $TOKEN_DONO
 assert_status "PATCH /aprovar supervisor na missao solo -> 200" "200" $script:STATUS
+
+# Tentar aprovar solicitacao de outra missao -> 404 (solicitacao nao pertence a missao)
+PATCH "/missoes/$MISSAO_ID/solicitacoes/$SOL_SOLO_ID/aprovar" $TOKEN_DONO
+assert_status "PATCH /aprovar solicitacaoId de outra missao -> 404" "404" $script:STATUS
 
 POST "/missoes/$MISSAO_SOLO_ID/sair" "{}" $TOKEN_SUPERVISOR
 assert_status "POST /sair supervisor (com sucesso) -> 204" "204" $script:STATUS
@@ -483,6 +508,15 @@ PUT "/satelites/$SAT_ID" (@{nome="SAT-01";dataLancamento="2026-03-01";missaoId=$
 assert_status "PUT /satelites/{id} (DONO) -> 200" "200" $script:STATUS
 assert_eq "altitudeKm atualizada pelo DONO para 650" "650" (j).altitudeKm
 
+# Criar SAT-02 para testar nome duplicado no PUT
+POST "/satelites" (@{nome="SAT-02";dataLancamento="2026-01-15";missaoId=$MISSAO_ID;coordenadas=@{altitudeKm=300.0;inclinacao=45.0;longitudeNodo=0.0};tipoOrbita="GEO";statusSatelite="ATIVO"} | ConvertTo-Json -Compress -Depth 5) $TOKEN_DONO
+assert_status "POST /satelites SAT-02 -> 201" "201" $script:STATUS
+$SAT_02_ID = (j).id
+
+# Tentar renomear SAT-02 para SAT-01 (nome ja existe na missao) -> 400
+PUT "/satelites/$SAT_02_ID" (@{nome="SAT-01";dataLancamento="2026-01-15";missaoId=$MISSAO_ID;coordenadas=@{altitudeKm=300.0;inclinacao=45.0;longitudeNodo=0.0};tipoOrbita="GEO";statusSatelite="ATIVO"} | ConvertTo-Json -Compress -Depth 5) $TOKEN_DONO
+assert_status "PUT /satelites nome duplicado na missao -> 400" "400" $script:STATUS
+
 DELETE "/satelites/$SAT_ID" $TOKEN_SUPERVISOR
 assert_status "DELETE /satelites/{id} (SUPERVISOR) -> 403" "403" $script:STATUS
 
@@ -556,6 +590,10 @@ assert_eq "detalhe permanece CELSIUS" "CELSIUS" (j).detalhe
 PUT "/sensores/$SENSOR_TERMICO_ID" (@{nome="Termometro";unidade="graus_C";limiteMin=-10.0;limiteMax=90.0;margemAlerta=5.0;sateliteId=$SAT_ID;tipo="TERMICO";unidadeEscala="CELSIUS"} | ConvertTo-Json -Compress) $TOKEN_DONO
 assert_status "PUT /sensores/{id} (DONO) -> 200" "200" $script:STATUS
 assert_eq "unidade atualizada pelo DONO para graus_C" "graus_C" (j).unidade
+
+# Tentar renomear Barometro para Termometro (nome ja existe no satelite) -> 400
+PUT "/sensores/$SENSOR_PRESSAO_ID" (@{nome="Termometro";unidade="hPa";limiteMin=950.0;limiteMax=1050.0;margemAlerta=5.0;sateliteId=$SAT_ID;tipo="PRESSAO";tipoPressao="ABSOLUTA"} | ConvertTo-Json -Compress) $TOKEN_DONO
+assert_status "PUT /sensores nome duplicado no satelite -> 400" "400" $script:STATUS
 
 # ── 12. LEITURAS -- StatusCalculator ──────────────────────────────
 section "12. LEITURAS -- Registro e classificacao automatica de status"
@@ -692,6 +730,9 @@ assert_gte "Alertas do satelite >= 2" 2 (j).totalElements
 
 GET "/alertas/satelite/99999"
 assert_status "GET /alertas/satelite/99999 -> 404" "404" $script:STATUS
+
+PATCH "/alertas/$ALERTA_ID`?novoStatus=RECONHECIDO" $TOKEN_MEMBRO
+assert_status "PATCH /alertas (MEMBRO da missao) -> 403" "403" $script:STATUS
 
 PATCH "/alertas/$ALERTA_ID`?novoStatus=RECONHECIDO"
 assert_status "PATCH /alertas sem token -> 403" "403" $script:STATUS

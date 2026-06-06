@@ -92,6 +92,11 @@ public class SensorService {
             throw new IllegalArgumentException("limiteMin deve ser menor que limiteMax");
         }
 
+        if (sensorRepository.existsByNomeAndSateliteIdAndIdNot(req.nome(), sensor.getSatelite().getId(), sensor.getId())) {
+            throw new IllegalArgumentException(
+                    "Já existe um sensor com o nome '" + req.nome() + "' neste satélite");
+        }
+
         sensor.setNome(req.nome());
         sensor.setUnidade(req.unidade());
         sensor.setLimiteMin(req.limiteMin());

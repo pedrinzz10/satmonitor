@@ -4,7 +4,12 @@ import br.com.fiap.satmonitor.alerta.dto.AlertaResponse;
 import br.com.fiap.satmonitor.alerta.entity.Alerta;
 import br.com.fiap.satmonitor.alerta.enums.StatusAlerta;
 import br.com.fiap.satmonitor.alerta.repository.AlertaRepository;
+import br.com.fiap.satmonitor.auth.entity.Operador;
+import br.com.fiap.satmonitor.exception.AcessoNegadoException;
 import br.com.fiap.satmonitor.exception.EntityNotFoundException;
+import br.com.fiap.satmonitor.missao.entity.OperadorMissao;
+import br.com.fiap.satmonitor.missao.enums.RoleMissao;
+import br.com.fiap.satmonitor.missao.repository.OperadorMissaoRepository;
 import br.com.fiap.satmonitor.satelite.repository.SateliteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +25,7 @@ public class AlertaService {
 
     private final AlertaRepository alertaRepository;
     private final SateliteRepository sateliteRepository;
+    private final OperadorMissaoRepository operadorMissaoRepository;
 
     @Transactional(readOnly = true)
     public Page<AlertaResponse> listar(StatusAlerta status, Pageable pageable) {
@@ -43,12 +49,26 @@ public class AlertaService {
     }
 
     @Transactional
-    public AlertaResponse atualizarStatus(Long id, StatusAlerta novoStatus) {
+    public AlertaResponse atualizarStatus(Long id, StatusAlerta novoStatus, Operador operadorLogado) {
         Alerta alerta = buscarEntidade(id);
+
+        Long missaoId = alerta.getLeitura().getSensor().getSatelite().getMissao().getId();
+        verificarRole(missaoId, operadorLogado.getId(), RoleMissao.SUPERVISOR);
+
         alerta.setStatusAlerta(novoStatus);
         alertaRepository.save(alerta);
-        log.info("Alerta id={} atualizado para {}", id, novoStatus);
+        log.info("Alerta id={} atualizado para {} pelo operador '{}'", id, novoStatus, operadorLogado.getLogin());
         return toResponse(alerta);
+    }
+
+    private void verificarRole(Long missaoId, Long operadorId, RoleMissao roleMinimo) {
+        OperadorMissao vinculo = operadorMissaoRepository
+                .findByMissaoIdAndOperadorId(missaoId, operadorId)
+                .orElseThrow(() -> new AcessoNegadoException("Você não é membro desta missão"));
+
+        if (!vinculo.getRole().temPermissao(roleMinimo)) {
+            throw new AcessoNegadoException("Role mínima exigida: " + roleMinimo.name());
+        }
     }
 
     private Alerta buscarEntidade(Long id) {

@@ -96,6 +96,11 @@ public class SateliteService {
 
         verificarRole(satelite.getMissao().getId(), operadorLogado.getId(), RoleMissao.SUPERVISOR);
 
+        if (sateliteRepository.existsByNomeAndMissaoIdAndIdNot(req.nome(), satelite.getMissao().getId(), satelite.getId())) {
+            throw new IllegalArgumentException(
+                    "Já existe um satélite com o nome '" + req.nome() + "' nesta missão");
+        }
+
         satelite.setNome(req.nome());
         satelite.setDataLancamento(req.dataLancamento());
         satelite.setCoordenadas(CoordenadasOrbitais.builder()

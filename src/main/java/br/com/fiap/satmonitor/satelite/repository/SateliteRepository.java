@@ -16,6 +16,8 @@ public interface SateliteRepository extends JpaRepository<Satelite, Long> {
 
     boolean existsByNomeAndMissaoId(String nome, Long missaoId);
 
+    boolean existsByNomeAndMissaoIdAndIdNot(String nome, Long missaoId, Long id);
+
     long countByMissaoId(Long missaoId);
 
     @Query("""
