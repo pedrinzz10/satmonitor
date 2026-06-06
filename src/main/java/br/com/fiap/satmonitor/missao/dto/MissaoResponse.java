@@ -26,4 +26,5 @@ public class MissaoResponse extends RepresentationModel<MissaoResponse> {
     private String nomeAgencia;
     private String objetivo;
     private LocalDate dataFimPrevista;
+    private Boolean permitirCowork;
 }

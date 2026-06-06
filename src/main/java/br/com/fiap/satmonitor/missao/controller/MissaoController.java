@@ -3,6 +3,7 @@ package br.com.fiap.satmonitor.missao.controller;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.missao.dto.*;
 import br.com.fiap.satmonitor.missao.enums.RoleMissao;
+import br.com.fiap.satmonitor.missao.enums.StatusSolicitacao;
 import br.com.fiap.satmonitor.missao.service.MissaoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -60,6 +61,15 @@ public class MissaoController {
         return ResponseEntity.ok(page);
     }
 
+    @GetMapping("/buscar")
+    @Operation(summary = "Busca pública de missões por nome (para operadores descobrirem missões antes de solicitar entrada)")
+    public ResponseEntity<Page<MissaoResponse>> buscar(
+            @RequestParam String nome,
+            @PageableDefault(size = 10, sort = "nome") Pageable pageable) {
+
+        return ResponseEntity.ok(missaoService.buscarPorNome(nome, pageable));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Busca missão por id")
     public ResponseEntity<MissaoResponse> buscarPorId(
@@ -93,16 +103,51 @@ public class MissaoController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/entrar")
-    @Operation(summary = "Entra na missão via senha")
-    public ResponseEntity<MissaoResponse> entrar(
+    @PostMapping("/{id}/solicitar")
+    @Operation(summary = "Solicita entrada na missão — aguarda aprovação do DONO/SUPERVISOR")
+    @ApiResponse(responseCode = "201", description = "Solicitação criada com status PENDENTE")
+    @ApiResponse(responseCode = "403", description = "Agência incompatível ou missão não permite cowork")
+    @ApiResponse(responseCode = "409", description = "Já é membro ou já tem solicitação pendente")
+    public ResponseEntity<SolicitacaoResponse> solicitarEntrada(
             @PathVariable Long id,
             @RequestBody @Valid EntrarMissaoRequest req,
             @AuthenticationPrincipal Operador operadorLogado) {
 
-        MissaoResponse response = missaoService.entrar(id, req, operadorLogado);
-        adicionarLinks(response, RoleMissao.MEMBRO);
-        return ResponseEntity.ok(response);
+        SolicitacaoResponse response = missaoService.solicitarEntrada(id, req, operadorLogado);
+        return ResponseEntity.status(201).body(response);
+    }
+
+    @GetMapping("/{id}/solicitacoes")
+    @Operation(summary = "Lista solicitações de entrada — apenas DONO/SUPERVISOR")
+    public ResponseEntity<Page<SolicitacaoResponse>> listarSolicitacoes(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "PENDENTE") StatusSolicitacao status,
+            @PageableDefault(size = 20) Pageable pageable,
+            @AuthenticationPrincipal Operador operadorLogado) {
+
+        return ResponseEntity.ok(missaoService.listarSolicitacoes(id, status, pageable, operadorLogado));
+    }
+
+    @PatchMapping("/{id}/solicitacoes/{solicitacaoId}/aprovar")
+    @Operation(summary = "Aprova solicitação de entrada — apenas DONO/SUPERVISOR")
+    public ResponseEntity<Void> aprovarSolicitacao(
+            @PathVariable Long id,
+            @PathVariable Long solicitacaoId,
+            @AuthenticationPrincipal Operador operadorLogado) {
+
+        missaoService.responderSolicitacao(id, solicitacaoId, true, operadorLogado);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/solicitacoes/{solicitacaoId}/rejeitar")
+    @Operation(summary = "Rejeita solicitação de entrada — apenas DONO/SUPERVISOR")
+    public ResponseEntity<Void> rejeitarSolicitacao(
+            @PathVariable Long id,
+            @PathVariable Long solicitacaoId,
+            @AuthenticationPrincipal Operador operadorLogado) {
+
+        missaoService.responderSolicitacao(id, solicitacaoId, false, operadorLogado);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{id}/sair")

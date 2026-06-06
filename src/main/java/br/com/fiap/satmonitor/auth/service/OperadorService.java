@@ -1,8 +1,10 @@
 package br.com.fiap.satmonitor.auth.service;
 
+import br.com.fiap.satmonitor.agencia.repository.AgenciaRepository;
 import br.com.fiap.satmonitor.auth.dto.RegistroRequest;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.auth.repository.OperadorRepository;
+import br.com.fiap.satmonitor.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -16,6 +18,7 @@ public class OperadorService implements UserDetailsService {
 
     private final OperadorRepository operadorRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AgenciaRepository agenciaRepository;
 
     @Override
     public UserDetails loadUserByUsername(String login) throws UsernameNotFoundException {
@@ -27,10 +30,14 @@ public class OperadorService implements UserDetailsService {
         if (operadorRepository.findByLogin(req.login()).isPresent()) {
             throw new IllegalArgumentException("Login já está em uso");
         }
+        var agencia = agenciaRepository.findById(req.agenciaId())
+                .orElseThrow(() -> new EntityNotFoundException("Agência não encontrada com id: " + req.agenciaId()));
+
         Operador operador = Operador.builder()
                 .login(req.login())
                 .senha(passwordEncoder.encode(req.senha()))
                 .nome(req.nome())
+                .agencia(agencia)
                 .build();
         return operadorRepository.save(operador);
     }

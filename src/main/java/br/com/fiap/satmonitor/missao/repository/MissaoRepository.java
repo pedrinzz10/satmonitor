@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface MissaoRepository extends JpaRepository<Missao, Long> {
 
     Page<Missao> findByMembrosOperadorId(Long operadorId, Pageable pageable);
+
+    Page<Missao> findByNomeContainingIgnoreCase(String nome, Pageable pageable);
 }

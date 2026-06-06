@@ -7,9 +7,12 @@ import br.com.fiap.satmonitor.exception.*;
 import br.com.fiap.satmonitor.missao.dto.*;
 import br.com.fiap.satmonitor.missao.entity.Missao;
 import br.com.fiap.satmonitor.missao.entity.OperadorMissao;
+import br.com.fiap.satmonitor.missao.entity.SolicitacaoEntrada;
 import br.com.fiap.satmonitor.missao.enums.RoleMissao;
+import br.com.fiap.satmonitor.missao.enums.StatusSolicitacao;
 import br.com.fiap.satmonitor.missao.repository.MissaoRepository;
 import br.com.fiap.satmonitor.missao.repository.OperadorMissaoRepository;
+import br.com.fiap.satmonitor.missao.repository.SolicitacaoEntradaRepository;
 import br.com.fiap.satmonitor.satelite.repository.SateliteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ public class MissaoService {
 
     private final MissaoRepository missaoRepository;
     private final OperadorMissaoRepository operadorMissaoRepository;
+    private final SolicitacaoEntradaRepository solicitacaoRepository;
     private final SateliteRepository sateliteRepository;
     private final PasswordEncoder passwordEncoder;
     private final AgenciaRepository agenciaRepository;
@@ -47,6 +51,7 @@ public class MissaoService {
                 .agencia(agencia)
                 .objetivo(req.objetivo())
                 .dataFimPrevista(req.dataFimPrevista())
+                .permitirCowork(req.permitirCowork() != null && req.permitirCowork())
                 .build();
 
         missaoRepository.save(missao);
@@ -77,6 +82,12 @@ public class MissaoService {
     }
 
     @Transactional(readOnly = true)
+    public Page<MissaoResponse> buscarPorNome(String nome, Pageable pageable) {
+        return missaoRepository.findByNomeContainingIgnoreCase(nome, pageable)
+                .map(m -> toResponse(m, RoleMissao.MEMBRO));
+    }
+
+    @Transactional(readOnly = true)
     public MissaoResponse buscarPorId(Long id, Operador operadorLogado) {
         Missao missao = missaoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Missão não encontrada com id: " + id));
@@ -102,6 +113,7 @@ public class MissaoService {
         missao.setAgencia(resolverAgencia(req.agenciaId()));
         missao.setObjetivo(req.objetivo());
         missao.setDataFimPrevista(req.dataFimPrevista());
+        missao.setPermitirCowork(req.permitirCowork() != null && req.permitirCowork());
 
         missaoRepository.save(missao);
 
@@ -121,29 +133,81 @@ public class MissaoService {
     }
 
     @Transactional
-    public MissaoResponse entrar(Long id, EntrarMissaoRequest req, Operador operadorLogado) {
+    public SolicitacaoResponse solicitarEntrada(Long id, EntrarMissaoRequest req, Operador operadorLogado) {
         Missao missao = missaoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Missão não encontrada com id: " + id));
 
-        if (operadorMissaoRepository.existsByMissaoIdAndOperadorId(id, operadorLogado.getId())) {
-            throw new OperadorJaMembroException("Operador já é membro desta missão");
+        if (operadorLogado.getAgencia() == null) {
+            throw new IllegalArgumentException("Operador não possui agência vinculada");
+        }
+
+        if (!missao.getPermitirCowork() && missao.getAgencia() != null) {
+            if (!missao.getAgencia().getId().equals(operadorLogado.getAgencia().getId())) {
+                throw new AcessoNegadoException("Sua agência não tem permissão para entrar nesta missão");
+            }
         }
 
         if (!passwordEncoder.matches(req.senha(), missao.getSenhaMissao())) {
             throw new SenhaMissaoInvalidaException("Senha da missão incorreta");
         }
 
-        OperadorMissao vinculo = OperadorMissao.builder()
+        if (operadorMissaoRepository.existsByMissaoIdAndOperadorId(id, operadorLogado.getId())) {
+            throw new OperadorJaMembroException("Operador já é membro desta missão");
+        }
+
+        if (solicitacaoRepository.existsByMissaoIdAndOperadorIdAndStatus(id, operadorLogado.getId(), StatusSolicitacao.PENDENTE)) {
+            throw new OperadorJaMembroException("Já existe uma solicitação pendente para esta missão");
+        }
+
+        SolicitacaoEntrada solicitacao = SolicitacaoEntrada.builder()
                 .operador(operadorLogado)
                 .missao(missao)
-                .role(RoleMissao.MEMBRO)
-                .dataEntrada(LocalDateTime.now())
                 .build();
 
-        operadorMissaoRepository.save(vinculo);
+        solicitacaoRepository.save(solicitacao);
+        log.info("Operador '{}' solicitou entrada na missão id={}", operadorLogado.getLogin(), id);
+        return toSolicitacaoResponse(solicitacao);
+    }
 
-        log.info("Operador '{}' entrou na missão id={}", operadorLogado.getLogin(), id);
-        return toResponse(missao, RoleMissao.MEMBRO);
+    @Transactional(readOnly = true)
+    public Page<SolicitacaoResponse> listarSolicitacoes(Long missaoId, StatusSolicitacao status, Pageable pageable, Operador operadorLogado) {
+        verificarRole(missaoId, operadorLogado.getId(), RoleMissao.SUPERVISOR);
+        return solicitacaoRepository.findByMissaoIdAndStatus(missaoId, status, pageable)
+                .map(this::toSolicitacaoResponse);
+    }
+
+    @Transactional
+    public void responderSolicitacao(Long missaoId, Long solicitacaoId, boolean aprovar, Operador operadorLogado) {
+        verificarRole(missaoId, operadorLogado.getId(), RoleMissao.SUPERVISOR);
+
+        SolicitacaoEntrada solicitacao = solicitacaoRepository.findById(solicitacaoId)
+                .filter(s -> s.getMissao().getId().equals(missaoId))
+                .orElseThrow(() -> new EntityNotFoundException("Solicitação não encontrada"));
+
+        if (solicitacao.getStatus() != StatusSolicitacao.PENDENTE) {
+            throw new IllegalArgumentException("Solicitação já foi respondida");
+        }
+
+        solicitacao.setDataResposta(LocalDateTime.now());
+        solicitacao.setRespondidoPor(operadorLogado);
+
+        if (aprovar) {
+            solicitacao.setStatus(StatusSolicitacao.APROVADO);
+            OperadorMissao vinculo = OperadorMissao.builder()
+                    .operador(solicitacao.getOperador())
+                    .missao(solicitacao.getMissao())
+                    .role(RoleMissao.MEMBRO)
+                    .dataEntrada(LocalDateTime.now())
+                    .build();
+            operadorMissaoRepository.save(vinculo);
+            log.info("Solicitação id={} aprovada: operador '{}' entrou na missão id={}",
+                    solicitacaoId, solicitacao.getOperador().getLogin(), missaoId);
+        } else {
+            solicitacao.setStatus(StatusSolicitacao.REJEITADO);
+            log.info("Solicitação id={} rejeitada pelo operador '{}'", solicitacaoId, operadorLogado.getLogin());
+        }
+
+        solicitacaoRepository.save(solicitacao);
     }
 
     @Transactional
@@ -238,6 +302,7 @@ public class MissaoService {
                 .nomeAgencia(missao.getAgencia() != null ? missao.getAgencia().getNome() : null)
                 .objetivo(missao.getObjetivo())
                 .dataFimPrevista(missao.getDataFimPrevista())
+                .permitirCowork(missao.getPermitirCowork())
                 .build();
     }
 
@@ -245,6 +310,19 @@ public class MissaoService {
         if (agenciaId == null) return null;
         return agenciaRepository.findById(agenciaId)
                 .orElseThrow(() -> new EntityNotFoundException("Agência não encontrada com id: " + agenciaId));
+    }
+
+    private SolicitacaoResponse toSolicitacaoResponse(SolicitacaoEntrada s) {
+        var agencia = s.getOperador().getAgencia();
+        return new SolicitacaoResponse(
+                s.getId(),
+                s.getOperador().getId(),
+                s.getOperador().getNome(),
+                agencia != null ? agencia.getId() : null,
+                agencia != null ? agencia.getNome() : null,
+                s.getStatus(),
+                s.getDataSolicitacao()
+        );
     }
 
     private MembroResponse toMembroResponse(OperadorMissao om) {

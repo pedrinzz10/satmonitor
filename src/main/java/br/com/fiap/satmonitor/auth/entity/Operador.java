@@ -1,5 +1,6 @@
 package br.com.fiap.satmonitor.auth.entity;
 
+import br.com.fiap.satmonitor.agencia.entity.Agencia;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +37,10 @@ public class Operador implements UserDetails {
     @Builder.Default
     @Column(nullable = false)
     private String role = "OPERADOR";
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "agencia_id")
+    private Agencia agencia;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

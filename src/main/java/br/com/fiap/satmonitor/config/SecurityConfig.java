@@ -47,9 +47,10 @@ public class SecurityConfig {
                                 "Permissions-Policy", "geolocation=(), microphone=(), camera=()")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/registrar").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/agencias").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/satelites/**", "/sensores/**", "/leituras/**",
-                                "/agencias/**", "/alertas/**").permitAll()
+                                "/agencias/**", "/alertas/**", "/missoes/buscar").permitAll()
                         .requestMatchers(HttpMethod.POST, "/leituras").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**", "/swagger-ui.html",

@@ -49,6 +49,10 @@ public class Missao {
     @JoinColumn(name = "agencia_id")
     private Agencia agencia;
 
+    @Builder.Default
+    @Column(name = "permite_cowork", nullable = false)
+    private Boolean permitirCowork = false;
+
     @Column(name = "objetivo", length = 500)
     private String objetivo;
 
@@ -62,4 +66,8 @@ public class Missao {
     @Builder.Default
     @OneToMany(mappedBy = "missao", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OperadorMissao> membros = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "missao", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<SolicitacaoEntrada> solicitacoes = new ArrayList<>();
 }

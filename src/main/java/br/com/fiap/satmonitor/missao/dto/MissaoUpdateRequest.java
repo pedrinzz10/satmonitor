@@ -13,5 +13,6 @@ public record MissaoUpdateRequest(
         @NotNull StatusMissao status,
         Long agenciaId,
         String objetivo,
-        LocalDate dataFimPrevista
+        LocalDate dataFimPrevista,
+        Boolean permitirCowork
 ) {}
