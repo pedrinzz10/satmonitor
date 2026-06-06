@@ -2,7 +2,7 @@
 
 ## Formato padrão de todos os erros
 
-Qualquer erro da API, de qualquer módulo, retorna sempre o mesmo JSON:
+Qualquer erro da API retorna sempre o mesmo JSON:
 
 ```json
 {
@@ -28,14 +28,15 @@ Qualquer erro da API, de qualquer módulo, retorna sempre o mesmo JSON:
 
 | Situação | Mensagem típica |
 |----------|----------------|
-| Campo obrigatório vazio ou ausente | `"campo: não deve ser nulo"` ou `"campo: não deve estar em branco"` |
-| JSON malformado ou tipo de enum desconhecido | `"Corpo da requisição inválido ou mal formatado"` |
+| Campo obrigatório vazio ou ausente | `"campo: não deve ser nulo"` |
+| JSON malformado ou enum desconhecido | `"Corpo da requisição inválido ou mal formatado"` |
 | `limiteMin >= limiteMax` no sensor | `"limiteMin deve ser menor que limiteMax"` |
 | Nome duplicado no mesmo satélite | `"Já existe um sensor com o nome X neste satélite"` |
 | Nome duplicado na mesma missão (satélite) | `"Já existe um satélite com o nome X nesta missão"` |
 | Login já cadastrado | `"Login já está em uso"` |
-| Campo específico do tipo de sensor ausente | `"Campo unidadeEscala é obrigatório para sensores TERMICO"` |
-| Único DONO tentando sair sem transferir | `"Transfira a propriedade antes de sair da missão"` |
+| Campo específico do tipo de sensor ausente | `"unidadeEscala é obrigatório para sensores do tipo TERMICO"` |
+| Único DONO tentando sair sem transferir | `"Transfira a propriedade da missão antes de sair"` |
+| Solicitação já respondida | `"Solicitação já foi respondida"` |
 
 ### 401 — Não autenticado
 
@@ -44,39 +45,40 @@ Qualquer erro da API, de qualquer módulo, retorna sempre o mesmo JSON:
 | Login ou senha incorretos | `"Credenciais inválidas"` |
 | Token ausente em rota protegida | (Spring Security retorna 401 automaticamente) |
 | Token expirado ou com assinatura inválida | (Spring Security retorna 401 automaticamente) |
-| Senha da missão errada ao tentar entrar | `"Senha da missão incorreta"` |
-
-> As respostas de autenticação não distinguem "login não existe" de "senha errada" — isso é intencional para impedir enumeração de usuários.
+| Senha da missão errada ao solicitar entrada | `"Senha da missão incorreta"` |
 
 ### 403 — Sem permissão
 
 | Situação | Mensagem típica |
 |----------|----------------|
-| Operador não é membro da missão (em GETs) | `"Você não tem acesso a esta missão"` |
-| Role insuficiente (ex: MEMBRO tentando criar satélite) | `"Role mínima exigida: SUPERVISOR"` |
-| SUPERVISOR tentando excluir satélite/sensor (exige DONO) | `"Apenas o DONO pode excluir..."` |
+| Operador não é membro (em GETs de missão) | `"Você não tem acesso a esta missão"` |
+| Role insuficiente | `"Role mínima exigida: SUPERVISOR"` |
+| Missão sem cowork, agência incompatível | `"Esta missão não permite operadores de outras agências"` |
 | DONO tentando se remover via DELETE /membros | `"Use o endpoint /sair para sair da missão"` |
 | DONO tentando alterar a própria role | `"Não é possível alterar a própria role"` |
+| MEMBRO tentando atualizar status de alerta | `"Role mínima exigida: SUPERVISOR"` |
 
 ### 404 — Não encontrado
 
 | Situação |
 |---------|
-| Missão, satélite, sensor ou leitura não encontrado pelo id |
+| Missão, satélite, sensor, leitura ou alerta não encontrado pelo id |
 | `missaoId` inexistente no request de satélite |
 | `sateliteId` inexistente no request de sensor |
 | `sensorId` inexistente no request de leitura |
-| Operador não é membro em operações de escrita (verificarRole) |
+| Operador não é membro em operações de escrita (`verificarRole`) |
+| Solicitação não encontrada ou de outra missão |
 
 ### 409 — Conflito
 
 | Situação | Mensagem |
 |----------|---------|
-| Operador já é membro e tenta entrar novamente | `"Operador já é membro desta missão"` |
+| Operador já é membro e tenta solicitar novamente | `"Operador já é membro desta missão"` |
+| Já existe solicitação PENDENTE | `"Já existe uma solicitação pendente para esta missão"` |
 
 ### 500 — Erro interno
 
-Qualquer exceção não mapeada pelos handlers anteriores. Retorna `"Erro interno no servidor"` sem expor detalhes. Os detalhes aparecem apenas nos logs do servidor com stack trace completo.
+Qualquer exceção não mapeada. Retorna `"Erro interno no servidor"` sem expor detalhes — os detalhes aparecem apenas nos logs.
 
 ---
 
@@ -85,7 +87,7 @@ Qualquer exceção não mapeada pelos handlers anteriores. Retorna `"Erro intern
 | Classe | HTTP | Módulo que lança |
 |--------|:----:|----------------|
 | `EntityNotFoundException` | 404 | Todos |
-| `AcessoNegadoException` | 403 | missao, satelite, sensor, leitura |
+| `AcessoNegadoException` | 403 | missao, satelite, sensor, leitura, alerta |
 | `SenhaMissaoInvalidaException` | 401 | missao |
 | `OperadorJaMembroException` | 409 | missao |
 | `DonoUnicoException` | 400 | missao |
@@ -103,17 +105,17 @@ GlobalExceptionHandler (@RestControllerAdvice)
          ↓
 Seleciona o handler mais específico:
 
-  EntityNotFoundException      → 404
-  AcessoNegadoException        → 403
-  SenhaMissaoInvalidaException → 401
-  OperadorJaMembroException    → 409
-  DonoUnicoException           → 400
-  MethodArgumentNotValidException → 400 (campos inválidos)
-  HttpMessageNotReadableException → 400 (JSON ruim / enum desconhecido)
-  IllegalArgumentException     → 400
-  AccessDeniedException        → 403 ("Acesso negado")
-  AuthenticationException      → 401 ("Credenciais inválidas")
-  Exception (fallback final)   → 500
+  EntityNotFoundException          → 404
+  AcessoNegadoException            → 403
+  SenhaMissaoInvalidaException     → 401
+  OperadorJaMembroException        → 409
+  DonoUnicoException               → 400
+  MethodArgumentNotValidException  → 400 (campos inválidos)
+  HttpMessageNotReadableException  → 400 (JSON ruim / enum desconhecido)
+  IllegalArgumentException         → 400
+  AccessDeniedException            → 403 ("Acesso negado")
+  AuthenticationException          → 401 ("Credenciais inválidas")
+  Exception (fallback final)       → 500
 
          ↓
 Retorna ErroResponse { timestamp, status, error, path }
@@ -145,8 +147,3 @@ public ResponseEntity<ErroResponse> handleMinhaNova(MinhaNovaException ex, HttpS
 ```
 
 **3. Adicionar à tabela de exceções customizadas acima.**
-
-**4. Commitar:**
-```
-feat: cria MinhaNovaException (422) para <situação>
-```

@@ -4,14 +4,13 @@
 
 1. [O que é um sensor](#o-que-é-um-sensor)
 2. [Os 4 tipos de sensor](#os-4-tipos-de-sensor)
-3. [Como o status é calculado](#como-o-status-é-calculado)
-4. [Criar sensor](#criar-sensor)
-5. [Listar e buscar sensores](#listar-e-buscar-sensores)
-6. [Editar sensor](#editar-sensor)
-7. [Excluir sensor](#excluir-sensor)
-8. [Links HATEOAS](#links-hateoas)
-9. [Erros](#erros)
-10. [Por que herança JOINED](#por-que-herança-joined)
+3. [Criar sensor](#criar-sensor)
+4. [Listar e buscar sensores](#listar-e-buscar-sensores)
+5. [Editar sensor](#editar-sensor)
+6. [Excluir sensor](#excluir-sensor)
+7. [Links HATEOAS](#links-hateoas)
+8. [Erros](#erros)
+9. [Por que herança JOINED](#por-que-herança-joined)
 
 ---
 
@@ -39,39 +38,7 @@ Cada tipo tem um campo extra obrigatório:
 
 O campo específico aparece na resposta como `"detalhe"` (ex: `"detalhe": "CELSIUS"`).
 
-> **Tipo imutável:** após a criação, o tipo não pode ser alterado. Se precisar mudar, delete o sensor e crie um novo. Ver [seção Editar](#editar-sensor).
-
----
-
-## Como o status é calculado
-
-Com base nos parâmetros do sensor:
-
-```
-faixa         = limiteMax - limiteMin
-zonaAlertaMin = limiteMin + (faixa × margemAlerta / 100)
-zonaAlertaMax = limiteMax - (faixa × margemAlerta / 100)
-```
-
-**Sensor Térmico de exemplo:** `limiteMin=0`, `limiteMax=80`, `margemAlerta=10%`
-
-```
-zonaAlertaMin = 0  + (80 × 0.10) = 8.0
-zonaAlertaMax = 80 - (80 × 0.10) = 72.0
-
-|──CRITICO──|──ALERTA──|────NORMAL────|──ALERTA──|──CRITICO──|
-0           8         72             80
-```
-
-| Leitura | Classificação |
-|---------|:-------------:|
-| 95°C (> 80) | CRITICO |
-| 75°C (entre 72 e 80) | ALERTA |
-| 40°C (entre 8 e 72) | NORMAL |
-| 5°C (entre 0 e 8) | ALERTA |
-| -5°C (< 0) | CRITICO |
-| 72°C (== zonaAlertaMax) | NORMAL (fronteira exclusiva) |
-| 80°C (== limiteMax) | ALERTA (não é > 80) |
+> **Tipo imutável:** após a criação, o tipo não pode ser alterado. Se precisar mudar, delete o sensor e crie um novo.
 
 ---
 
@@ -165,9 +132,9 @@ curl -s -X POST http://localhost:8080/sensores \
   "nomeSatelite": "SAT-01",
   "detalhe": "CELSIUS",
   "_links": {
-    "self": { "href": "http://localhost:8080/sensores/1" },
-    "atualizar": { "href": "http://localhost:8080/sensores/1" },
-    "deletar": { "href": "http://localhost:8080/sensores/1" },
+    "self":     { "href": "http://localhost:8080/sensores/1" },
+    "atualizar":{ "href": "http://localhost:8080/sensores/1" },
+    "deletar":  { "href": "http://localhost:8080/sensores/1" },
     "leituras": { "href": "http://localhost:8080/leituras/sensor/1" },
     "satelite": { "href": "http://localhost:8080/satelites/1" }
   }
@@ -180,7 +147,7 @@ curl -s -X POST http://localhost:8080/sensores \
 |-------|------|:-----------:|-----------|
 | `nome` | String | Sim | Único por satélite |
 | `unidade` | String | Sim | Unidade de medida (ex: `"graus_C"`, `"hPa"`) |
-| `limiteMin` | Double | Sim | Deve ser menor que `limiteMax` |
+| `limiteMin` | Double | Sim | Deve ser **menor** que `limiteMax` |
 | `limiteMax` | Double | Sim | — |
 | `margemAlerta` | Double | Sim | Percentual de 0 a 100 |
 | `sateliteId` | Long | Sim | — |
@@ -212,14 +179,14 @@ curl -s http://localhost:8080/sensores/satelite/1
 
 ## Editar sensor
 
-Exige **SUPERVISOR ou DONO**. Apenas os campos comuns são atualizáveis:
+Exige **SUPERVISOR ou DONO**. Apenas os campos comuns são atualizáveis (`nome`, `unidade`, `limiteMin`, `limiteMax`, `margemAlerta`):
 
 ```bash
 curl -s -X PUT http://localhost:8080/sensores/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
   -d '{
-    "nome": "Termometro Principal",
+    "nome": "Termometro Principal v2",
     "unidade": "graus_C",
     "limiteMin": -20.0,
     "limiteMax": 100.0,
@@ -230,11 +197,9 @@ curl -s -X PUT http://localhost:8080/sensores/1 \
   }'
 ```
 
-**O campo `tipo` e o detalhe específico (`detalhe`) são imutáveis.** Mesmo que você envie um valor diferente no `tipo`, ele será ignorado e o valor original mantido.
+**O tipo e o campo específico são imutáveis.** Mesmo enviando `tipo` diferente no request, o valor original é mantido.
 
-**Por que o tipo é imutável?** Na estratégia JOINED do JPA, cada tipo fica em uma tabela diferente. Mudar o tipo exigiria mover dados entre tabelas — operação não suportada sem deletar e recriar. Como sensores físicos raramente mudam de tipo, essa restrição é intencional.
-
-**Como mudar o tipo:** delete o sensor (`DELETE /sensores/{id}`) e crie um novo com o tipo desejado. O histórico de leituras é perdido.
+**Para mudar o tipo:** delete o sensor e crie um novo. O histórico de leituras é perdido.
 
 ---
 
@@ -280,7 +245,7 @@ curl -s -X DELETE http://localhost:8080/sensores/1 \
 
 ## Por que herança JOINED
 
-Os 4 tipos de sensor compartilham campos comuns mas cada um tem um campo específico adicional. O JPA oferece 3 estratégias para isso:
+Os 4 tipos compartilham campos comuns mas cada um tem um campo específico adicional.
 
 | Estratégia | Como funciona | Problema |
 |------------|--------------|---------|
@@ -291,15 +256,14 @@ Os 4 tipos de sensor compartilham campos comuns mas cada um tem um campo especí
 **JOINED foi escolhida porque:**
 - Oracle é o banco de produção — colunas nulas em massa desperdiçam espaço
 - Os 4 tipos são consultados juntos frequentemente (`SELECT * FROM TB_SENSOR`)
-- Um join por consulta é aceitável para apenas 4 subclasses
-- Sequence `SEQ_SENSOR` é compartilhada entre todos os tipos (não funciona com `TABLE_PER_CLASS`)
+- Sequence `SEQ_SENSOR` é compartilhada entre todos os tipos
 
 **Tabelas criadas:**
 
 | Tabela | Conteúdo |
 |--------|---------|
-| `TB_SENSOR` | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id, tipo_sensor |
-| `TB_SENSOR_TERMICO` | id (FK → TB_SENSOR), unidade_escala |
-| `TB_SENSOR_PRESSAO` | id (FK → TB_SENSOR), tipo_pressao |
-| `TB_SENSOR_RADIACAO` | id (FK → TB_SENSOR), tipo_radiacao |
-| `TB_MAGNETOMETRO` | id (FK → TB_SENSOR), eixos_medicao |
+| `TB_SENSOR` | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id |
+| `TB_SENSOR_TERMICO` | id (FK), unidade_escala |
+| `TB_SENSOR_PRESSAO` | id (FK), tipo_pressao |
+| `TB_SENSOR_RADIACAO` | id (FK), tipo_radiacao |
+| `TB_MAGNETOMETRO` | id (FK), eixos_medicao |

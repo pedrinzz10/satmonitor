@@ -78,21 +78,11 @@ curl -s -X POST http://localhost:8080/auth/login \
 **Resposta de sucesso — 200 OK:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzYXRtb25pdG9yIiwic3ViIjoiYW5hLnNvdXphQHNhdC5kZXYiLCJleHAiOjE3NDkwMDAwMDB9.abc123"
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-**Resposta de erro — credenciais inválidas:**
-```json
-{
-  "timestamp": "2026-06-01T14:00:00.000",
-  "status": 401,
-  "error": "Credenciais inválidas",
-  "path": "/auth/login"
-}
-```
-
-> A mensagem é sempre `"Credenciais inválidas"` para login inexistente e para senha errada — isso impede descobrir se um login existe ou não.
+> A mensagem de erro é sempre `"Credenciais inválidas"` tanto para login inexistente quanto para senha errada — isso impede descobrir se um login existe ou não.
 
 ---
 
@@ -101,11 +91,10 @@ curl -s -X POST http://localhost:8080/auth/login \
 Salve o valor do campo `token` e envie em toda requisição protegida:
 
 ```bash
-# Exemplo: criar uma missão
 curl -s -X POST http://localhost:8080/missoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..." \
-  -d '{"nome":"Missao Alpha","descricao":"...","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"acesso123"}'
+  -d '{"nome":"Missao Alpha","dataLancamento":"2026-06-01","status":"PLANEJADA","senhaMissao":"acesso123"}'
 ```
 
 O token é válido por **8 horas**. Após expirar, refaça o login para obter um novo.
@@ -131,7 +120,7 @@ O token é válido por **8 horas**. Após expirar, refaça o login para obter um
 
 Qualquer rota não listada acima exige `Authorization: Bearer <token>` válido.
 
-**Importante:** `GET /missoes/**` é protegida — diferente dos outros módulos, missões só são visíveis para quem é membro, então a API precisa saber quem está perguntando.
+**`GET /missoes/**` é protegida** — missões só são visíveis para quem é membro, então a API precisa saber quem está perguntando.
 
 ---
 
@@ -144,7 +133,7 @@ Qualquer rota não listada acima exige `Authorization: Bearer <token>` válido.
 | 401 | Credenciais incorretas no login | Verifique login e senha |
 | 401 | Token ausente em rota protegida | Adicione `Authorization: Bearer <token>` |
 | 401 | Token expirado (após 8 horas) | Faça login novamente |
-| 403 | Token válido, mas role insuficiente | Verifique sua role na missão |
+| 403 | Token válido, mas role insuficiente na missão | Verifique sua role |
 
 ---
 
@@ -179,26 +168,16 @@ Controller processa a requisição com o operador identificado
 
 | Variável | Descrição | Obrigatória em prod? |
 |----------|-----------|:--------------------:|
-| `JWT_SECRET` (via `api.security.token.secret`) | Secret HMAC256 para assinar tokens | Sim |
+| `JWT_SECRET` | Secret HMAC256 para assinar tokens | Sim |
 | `ORACLE_URL` | URL JDBC do Oracle FIAP | Sim |
 | `ORACLE_USER` | Usuário Oracle | Sim |
 | `ORACLE_PASSWORD` | Senha Oracle | Sim |
 
-Em desenvolvimento, o secret tem um fallback configurado em `application.properties`. Em produção (`application-prod.properties`), não há fallback — a aplicação não sobe se `JWT_SECRET` não estiver definido.
-
-### Entidade Operador
-
-| Campo | Tipo | Detalhe |
-|-------|------|---------|
-| `id` | Long | PK, sequence `SEQ_OPERADOR` |
-| `login` | String | Único no banco, serve como username |
-| `senha` | String | Sempre hash BCrypt — `@JsonIgnore` no JSON |
-| `nome` | String | Nome de exibição |
-| `role` | String | Sempre `"OPERADOR"` (valor padrão via `@Builder.Default`) |
+Em desenvolvimento, o secret tem um fallback configurado em `application.properties`. Em produção, a aplicação não sobe se `JWT_SECRET` não estiver definido.
 
 ### Decisão: por que não há sessão?
 
-A API usa `SessionCreationPolicy.STATELESS` — nenhum `HttpSession` é criado. Cada requisição é autenticada pelo JWT no header, sem estado no servidor. Isso permite escalar horizontalmente sem sincronizar sessões entre instâncias.
+`SessionCreationPolicy.STATELESS` — nenhum `HttpSession` é criado. Cada requisição é autenticada pelo JWT no header, sem estado no servidor. Isso permite escalar horizontalmente sem sincronizar sessões entre instâncias.
 
 ### Decisão: por que CSRF está desabilitado?
 

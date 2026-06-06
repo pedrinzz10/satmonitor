@@ -26,18 +26,18 @@ LeituraSensor salva com status=CRITICO
     ↓
 Alerta criado automaticamente (statusAlerta=ATIVO)
     ↓
-TB_ALERTA → trigger Oracle do Henrique processa
+TB_ALERTA → trigger Oracle processa
     ↓
 Mobile exibe alerta em vermelho
 ```
 
-**Endpoints GET são públicos** — sem token. `PATCH` exige autenticação.
+**Endpoints GET são públicos** — sem token. `PATCH` exige autenticação **e role SUPERVISOR ou DONO** na missão do sensor.
 
 ---
 
 ## Como é gerado
 
-O `LeituraService` verifica o status calculado após cada `POST /leituras`. Se o status for `ALERTA` ou `CRITICO`, um `Alerta` é criado automaticamente na mesma transação:
+O `LeituraService` verifica o status calculado após cada `POST /leituras`. Se for `ALERTA` ou `CRITICO`, um `Alerta` é criado automaticamente na mesma transação:
 
 - `tipoAlerta` = nome do status (`"ALERTA"` ou `"CRITICO"`)
 - `descricao` = mensagem automática com nome do sensor, valor e limites
@@ -68,13 +68,13 @@ A transição é feita via `PATCH /alertas/{id}?novoStatus=X`. Não há validaç
 
 ### Listar todos (sem filtro)
 
-```
+```bash
 GET http://localhost:8080/alertas
 ```
 
 ### Filtrar por status
 
-```
+```bash
 GET http://localhost:8080/alertas?status=ATIVO
 GET http://localhost:8080/alertas?status=RECONHECIDO
 GET http://localhost:8080/alertas?status=RESOLVIDO
@@ -107,13 +107,13 @@ GET http://localhost:8080/alertas?status=RESOLVIDO
 
 ### Buscar por id
 
-```
+```bash
 GET http://localhost:8080/alertas/1
 ```
 
 ### Listar alertas de um satélite
 
-```
+```bash
 GET http://localhost:8080/alertas/satelite/1
 ```
 
@@ -123,20 +123,20 @@ Retorna 404 se o satélite não existir.
 
 ## Atualizar status (reconhecer/resolver)
 
-Exige autenticação (qualquer token válido).
+Exige autenticação **e role SUPERVISOR ou DONO** na missão do sensor que gerou o alerta.
 
 ### Reconhecer alerta
 
-```
-PATCH http://localhost:8080/alertas/1?novoStatus=RECONHECIDO
-Authorization: Bearer {{token}}
+```bash
+curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RECONHECIDO" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
 ```
 
 ### Resolver alerta
 
-```
-PATCH http://localhost:8080/alertas/1?novoStatus=RESOLVIDO
-Authorization: Bearer {{token}}
+```bash
+curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RESOLVIDO" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
 ```
 
 **Resposta — 200 OK:**
@@ -149,6 +149,8 @@ Authorization: Bearer {{token}}
   ...
 }
 ```
+
+> **MEMBRO da missão não pode atualizar alertas** — exige SUPERVISOR ou DONO. Retorna 403 se a role for insuficiente.
 
 ---
 
@@ -163,13 +165,13 @@ Authorization: Bearer {{token}}
 
 ## Integração com Oracle PL/SQL
 
-O `TB_ALERTA` é o ponto de integração com o schema do Henrique (PL/SQL). A API Java insere registros em `TB_ALERTA` e o Oracle responde via trigger:
+O `TB_ALERTA` é o ponto de integração com o schema Oracle. A API Java insere registros em `TB_ALERTA` e o Oracle responde via trigger:
 
 | Responsabilidade | Quem |
 |-----------------|------|
 | Criar linha em `TB_ALERTA` | API Java (automático via `LeituraService`) |
-| Processar o alerta (trigger, auditoria) | Oracle PL/SQL (Henrique) |
-| Exibir alerta no app | Mobile (Fabrício) — consulta `GET /alertas` |
+| Processar o alerta (trigger, auditoria) | Oracle PL/SQL |
+| Exibir alerta no app | Mobile — consulta `GET /alertas` |
 
 ---
 
@@ -178,5 +180,7 @@ O `TB_ALERTA` é o ponto de integração com o schema do Henrique (PL/SQL). A AP
 | Status | Situação |
 |:------:|---------|
 | 401 | Token ausente no PATCH |
+| 403 | MEMBRO da missão tentando atualizar status |
+| 403 | Operador não é membro da missão do alerta |
 | 404 | Alerta não encontrado pelo id |
 | 404 | Satélite não encontrado em `GET /alertas/satelite/{id}` |

@@ -14,7 +14,7 @@
 
 ## O que é uma agência
 
-Uma **agência** é a organização espacial responsável por uma missão (ex: NASA, ESA, INPE). O vínculo é **opcional** — uma missão pode existir sem agência, e adicionar uma não quebra nenhum contrato existente com o Mobile ou IoT.
+Uma **agência** é a organização espacial responsável por uma missão (ex: NASA, ESA, INPE). O vínculo é **opcional** — uma missão pode existir sem agência.
 
 **Endpoints GET são públicos** — sem token. Criar, editar e excluir exigem autenticação.
 
@@ -22,19 +22,15 @@ Uma **agência** é a organização espacial responsável por uma missão (ex: N
 
 ## Criar agência
 
-```
-POST http://localhost:8080/agencias
-Content-Type: application/json
-Authorization: Bearer {{token}}
-```
-
-**Body:**
-```json
-{
-  "nome": "NASA",
-  "siglaPais": "US",
-  "tipoAgencia": "GOVERNAMENTAL"
-}
+```bash
+curl -s -X POST http://localhost:8080/agencias \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN" \
+  -d '{
+    "nome": "NASA",
+    "siglaPais": "US",
+    "tipoAgencia": "GOVERNAMENTAL"
+  }'
 ```
 
 **Resposta — 201 Created:**
@@ -68,13 +64,11 @@ Authorization: Bearer {{token}}
 
 ## Listar e buscar
 
-```
+```bash
+# Listar todas (paginado, 10 por página, ordenado por nome)
 GET http://localhost:8080/agencias
-```
 
-Paginado, 10 por página, ordenado por `nome`.
-
-```
+# Buscar por id
 GET http://localhost:8080/agencias/1
 ```
 
@@ -84,56 +78,43 @@ GET http://localhost:8080/agencias/1
 
 ### Editar
 
-```
+```bash
 PUT http://localhost:8080/agencias/1
+Authorization: Bearer SEU_TOKEN
 Content-Type: application/json
-Authorization: Bearer {{token}}
-```
 
-**Body:** mesma estrutura do POST.
+# Body: mesma estrutura do POST
+```
 
 ### Excluir
 
-```
+```bash
 DELETE http://localhost:8080/agencias/1
-Authorization: Bearer {{token}}
+Authorization: Bearer SEU_TOKEN
+# → 204 No Content
 ```
 
-Retorna 204 No Content. Se a agência estiver vinculada a missões, a FK em `TB_MISSAO` é nullable — o delete remove a agência mas não afeta as missões (o campo `agenciaId` ficará null nelas após o delete pelo banco).
+A FK em `TB_MISSAO` é nullable — ao deletar a agência, as missões vinculadas ficam com `agenciaId = null` no banco.
 
 ---
 
 ## Vincular missão a uma agência
 
-O campo `agenciaId` é **opcional** nos requests de missão. Pode ser enviado na criação ou na atualização:
+O campo `agenciaId` é **opcional** nos requests de missão:
 
-**POST /missoes com agência:**
 ```json
 {
   "nome": "Missao Alpha",
   "dataLancamento": "2026-06-01",
   "status": "PLANEJADA",
   "senhaMissao": "acesso123",
-  "agenciaId": 1,
-  "objetivo": "Monitoramento de órbita baixa",
-  "dataFimPrevista": "2027-12-31"
-}
-```
-
-**Response com agência:**
-```json
-{
-  "id": 1,
-  "nome": "Missao Alpha",
-  "agenciaId": 1,
-  "nomeAgencia": "NASA",
-  "objetivo": "Monitoramento de órbita baixa",
-  "dataFimPrevista": "2027-12-31",
-  ...
+  "agenciaId": 1
 }
 ```
 
 Se `agenciaId` for omitido, os campos `agenciaId` e `nomeAgencia` virão como `null` — comportamento idêntico ao anterior.
+
+> O vínculo entre missão e agência também é relevante para o **controle de cowork**: quando `permitirCowork=false`, somente operadores da mesma agência da missão podem solicitar entrada. Ver [api/Missao.md](Missao.md).
 
 ---
 

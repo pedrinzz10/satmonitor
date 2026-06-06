@@ -237,7 +237,7 @@ Cada operador tem uma role específica em cada missão:
 | Excluir satélite, sensor, missão | ✓ | — | — |
 | Gerenciar membros | ✓ | — | — |
 
-O criador da missão começa como **DONO**. Novos membros entram com a **senha da missão** via `POST /missoes/{id}/entrar` e começam como **MEMBRO**.
+O criador da missão começa como **DONO**. Novos membros solicitam entrada via `POST /missoes/{id}/solicitar` (com a senha da missão) e ficam **PENDENTE** até um SUPERVISOR ou DONO aprovar. Quando `permitirCowork=false` (padrão), apenas operadores da mesma agência podem solicitar.
 
 ---
 
@@ -266,7 +266,11 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 | GET | `/missoes/{id}` | ✓ | MEMBRO |
 | PUT | `/missoes/{id}` | ✓ | DONO |
 | DELETE | `/missoes/{id}` | ✓ | DONO |
-| POST | `/missoes/{id}/entrar` | ✓ | — |
+| GET | `/missoes/buscar?nome=X` | — | — |
+| POST | `/missoes/{id}/solicitar` | ✓ | — |
+| GET | `/missoes/{id}/solicitacoes` | ✓ | SUPERVISOR |
+| PATCH | `/missoes/{id}/solicitacoes/{solId}/aprovar` | ✓ | SUPERVISOR |
+| PATCH | `/missoes/{id}/solicitacoes/{solId}/rejeitar` | ✓ | SUPERVISOR |
 | POST | `/missoes/{id}/sair` | ✓ | MEMBRO |
 | GET | `/missoes/{id}/membros` | ✓ | MEMBRO |
 | DELETE | `/missoes/{id}/membros/{opId}` | ✓ | DONO |
@@ -309,7 +313,7 @@ O criador da missão começa como **DONO**. Novos membros entram com a **senha d
 | GET | `/alertas` | — | Lista todos (filtro `?status=ATIVO\|RECONHECIDO\|RESOLVIDO`) |
 | GET | `/alertas/{id}` | — | Busca por id |
 | GET | `/alertas/satelite/{sateliteId}` | — | Alertas de um satélite |
-| PATCH | `/alertas/{id}?novoStatus=X` | ✓ | Reconhece ou resolve o alerta |
+| PATCH | `/alertas/{id}?novoStatus=X` | ✓ | Reconhece ou resolve — exige SUPERVISOR ou DONO na missão |
 
 ---
 
@@ -369,19 +373,33 @@ TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger 
 
 ## Documentação detalhada
 
+### API — Endpoints
 | Arquivo | Conteúdo |
 |---------|---------|
-| [`docs/Auth.md`](docs/Auth.md) | JWT, registro, login, filtro de segurança |
-| [`docs/Agencia.md`](docs/Agencia.md) | Agências espaciais — CRUD e vínculo com missões |
-| [`docs/Missao.md`](docs/Missao.md) | Roles, endpoints de missão, fluxos de entrada/saída |
-| [`docs/Satelite.md`](docs/Satelite.md) | Satélites, coordenadas orbitais, tipo de órbita, estatísticas |
-| [`docs/Sensor.md`](docs/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
-| [`docs/Leitura.md`](docs/Leitura.md) | StatusCalculator, contrato IoT, geração automática de alertas |
-| [`docs/Alerta.md`](docs/Alerta.md) | Alertas automáticos, ciclo de vida, integração Oracle |
-| [`docs/Exception.md`](docs/Exception.md) | Mapa de erros, como adicionar nova exceção |
-| [`docs/MissaoService.md`](docs/MissaoService.md) | Fluxos internos do service de missões |
-| [`docs/Testes.md`](docs/Testes.md) | Coleção Postman importável com testes automáticos |
-| [`docs/Deploy.md`](docs/Deploy.md) | Passo a passo: Docker + Azure VM + Oracle remoto |
+| [`docs/api/Auth.md`](docs/api/Auth.md) | JWT, registro, login, filtro de segurança |
+| [`docs/api/Agencia.md`](docs/api/Agencia.md) | Agências espaciais — CRUD e vínculo com missões |
+| [`docs/api/Missao.md`](docs/api/Missao.md) | Roles, endpoints de missão, fluxos de entrada/saída |
+| [`docs/api/Satelite.md`](docs/api/Satelite.md) | Satélites, coordenadas orbitais, tipo de órbita, estatísticas |
+| [`docs/api/Sensor.md`](docs/api/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
+| [`docs/api/Leitura.md`](docs/api/Leitura.md) | StatusCalculator, contrato IoT, geração automática de alertas |
+| [`docs/api/Alerta.md`](docs/api/Alerta.md) | Alertas automáticos, ciclo de vida, integração Oracle |
+
+### Internos — Comportamento e regras
+| Arquivo | Conteúdo |
+|---------|---------|
+| [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa de erros, como adicionar nova exceção |
+| [`docs/internals/MissaoService.md`](docs/internals/MissaoService.md) | Fluxos internos do service de missões |
+
+### Testes
+| Arquivo | Conteúdo |
+|---------|---------|
+| [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Coleção Postman e script PowerShell (241 testes de integração) |
+| [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório JaCoCo |
+
+### Infraestrutura
+| Arquivo | Conteúdo |
+|---------|---------|
+| [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Passo a passo: Docker + Azure VM + Oracle remoto |
 
 ---
 

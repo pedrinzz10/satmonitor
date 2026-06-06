@@ -27,7 +27,6 @@ O `POST /leituras` é **público** (sem token) porque o ESP32 (IoT) posta leitur
 ## Registrar leitura (IoT)
 
 ```bash
-# Sem token — endpoint público para ESP32 e qualquer cliente IoT
 curl -s -X POST http://localhost:8080/leituras \
   -H "Content-Type: application/json" \
   -d '{
@@ -54,9 +53,9 @@ curl -s -X POST http://localhost:8080/leituras \
   "longitude": -46.6333,
   "qualidade": "BOA",
   "_links": {
-    "self": { "href": "http://localhost:8080/leituras/42" },
-    "deletar": { "href": "http://localhost:8080/leituras/42" },
-    "sensor": { "href": "http://localhost:8080/sensores/1" },
+    "self":     { "href": "http://localhost:8080/leituras/42" },
+    "deletar":  { "href": "http://localhost:8080/leituras/42" },
+    "sensor":   { "href": "http://localhost:8080/sensores/1" },
     "satelite": { "href": "http://localhost:8080/satelites/1" }
   }
 }
@@ -72,8 +71,7 @@ curl -s -X POST http://localhost:8080/leituras \
 | `longitude` | Double | Não | Posição geográfica no momento da leitura |
 | `qualidade` | Enum | Não | `BOA` (padrão), `DEGRADADA` ou `INVALIDA` |
 
-> **Nunca enviar:** `status` e `dataHoraLeitura` — calculados/definidos pelo servidor.  
-> Os campos opcionais podem ser omitidos — o ESP32 pode enviar somente `valor` e `sensorId`.
+> **Nunca enviar:** `status` e `dataHoraLeitura` — calculados/definidos pelo servidor.
 
 ---
 
@@ -119,27 +117,21 @@ zonaAlertaMax =  90 - (100 × 0.05) = 85.0
 | 85.0 | == zonaAlertaMax → não é `>` → cai no NORMAL | NORMAL |
 
 **Fronteiras:**
-- `valor == limiteMin` → **ALERTA** (não é `< limiteMin`)
-- `valor == limiteMax` → **ALERTA** (não é `> limiteMax`)
-- `valor == zonaAlertaMax` → **NORMAL** (não é `> zonaAlertaMax`)
+- `valor == limiteMin` → **ALERTA**
+- `valor == limiteMax` → **ALERTA**
+- `valor == zonaAlertaMax` → **NORMAL**
 
 ---
 
 ## Caso especial: margemAlerta=0
 
-Quando `margemAlerta = 0`, não existe zona de alerta. O sistema funciona de forma binária: ou NORMAL ou CRITICO.
+Quando `margemAlerta = 0`, não existe zona de alerta. O sistema funciona de forma binária: NORMAL ou CRITICO.
 
 ```
-zonaAlertaMin = limiteMin + 0 = limiteMin
-zonaAlertaMax = limiteMax - 0 = limiteMax
-
-Resultado: apenas NORMAL ou CRITICO, sem ALERTA.
+zonaAlertaMin = limiteMin
+zonaAlertaMax = limiteMax
+→ Apenas NORMAL ou CRITICO, sem ALERTA.
 ```
-
-| Valor | Status |
-|-------|:------:|
-| Dentro de [limiteMin, limiteMax] | NORMAL |
-| Fora dos limites | CRITICO |
 
 Útil para sensores onde qualquer desvio já é crítico — sem aviso prévio.
 
@@ -153,32 +145,13 @@ Todos os GET de leituras são públicos — sem token.
 
 ```bash
 curl -s http://localhost:8080/leituras
-# Paginado, 20 por página, ordenado por data DESC (mais recentes primeiro)
+# Paginado, 20 por página, ordenado por data DESC
 ```
 
 ### Buscar leitura por id
 
 ```bash
 curl -s http://localhost:8080/leituras/42
-```
-
-**Resposta — 200 OK:**
-```json
-{
-  "id": 42,
-  "valor": 95.3,
-  "dataHoraLeitura": "2026-06-01T14:32:07.412",
-  "status": "CRITICO",
-  "sensorId": 1,
-  "nomeSensor": "Termometro Principal",
-  "sateliteId": 1,
-  "nomeSatelite": "SAT-01",
-  "_links": {
-    "self": { "href": "http://localhost:8080/leituras/42" },
-    "sensor": { "href": "http://localhost:8080/sensores/1" },
-    "satelite": { "href": "http://localhost:8080/satelites/1" }
-  }
-}
 ```
 
 ### Leituras de um sensor (com filtro opcional)
@@ -189,52 +162,15 @@ curl -s http://localhost:8080/leituras/sensor/1
 
 # Apenas leituras CRITICO
 curl -s "http://localhost:8080/leituras/sensor/1?status=CRITICO"
-
-# Apenas leituras ALERTA
-curl -s "http://localhost:8080/leituras/sensor/1?status=ALERTA"
-
-# Apenas leituras NORMAL
-curl -s "http://localhost:8080/leituras/sensor/1?status=NORMAL"
 ```
 
 ### Leituras de todos os sensores de um satélite
 
 ```bash
-# Todas as leituras do satélite 1
-curl -s http://localhost:8080/leituras/satelite/1
-
-# Apenas leituras CRITICO do satélite 1
 curl -s "http://localhost:8080/leituras/satelite/1?status=CRITICO"
 ```
 
 > O parâmetro `?status=` é case-sensitive: use `NORMAL`, `ALERTA` ou `CRITICO` (maiúsculas).
-
-**Resposta paginada:**
-```json
-{
-  "content": [...],
-  "totalElements": 127,
-  "totalPages": 7,
-  "number": 0,
-  "size": 20
-}
-```
-
----
-
-## Geração automática de alertas
-
-Sempre que uma leitura recebe status `ALERTA` ou `CRITICO`, a API cria automaticamente um registro em `TB_ALERTA`:
-
-```
-POST /leituras { valor: 150.0, sensorId: 1 }
-    ↓ StatusCalculator → CRITICO
-    ↓ LeituraSensor salva
-    ↓ Alerta criado automaticamente (statusAlerta=ATIVO)
-    ↓ Disponível em GET /alertas
-```
-
-Leituras `NORMAL` não geram alerta. Ver [`docs/Alerta.md`](Alerta.md) para o ciclo de vida completo.
 
 ---
 

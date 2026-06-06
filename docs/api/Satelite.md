@@ -23,13 +23,13 @@ Missao → Satelite → Sensor → LeituraSensor
 
 Cada satélite tem **coordenadas orbitais** (altitude, inclinação, longitude do nodo) embutidas diretamente na sua tabela — sem tabela separada.
 
-**Endpoints GET são públicos** — qualquer cliente (Mobile, IoT, sistemas externos) consulta satélites sem token. Criar, editar e excluir exigem autenticação e role de **SUPERVISOR** ou **DONO** na missão do satélite.
+**Endpoints GET são públicos** — qualquer cliente (Mobile, IoT) consulta satélites sem token. Criar, editar e excluir exigem **SUPERVISOR ou DONO** na missão.
 
 ---
 
 ## Criar satélite
 
-Exige que o operador seja **SUPERVISOR ou DONO** na missão informada.
+Exige **SUPERVISOR ou DONO** na missão informada.
 
 ```bash
 curl -s -X POST http://localhost:8080/satelites \
@@ -64,12 +64,12 @@ curl -s -X POST http://localhost:8080/satelites \
   "nomeMissao": "Missao Alpha",
   "totalSensores": 0,
   "_links": {
-    "self": { "href": "http://localhost:8080/satelites/1" },
-    "atualizar": { "href": "http://localhost:8080/satelites/1" },
-    "deletar": { "href": "http://localhost:8080/satelites/1" },
-    "estatisticas": { "href": "http://localhost:8080/satelites/1/estatisticas" },
-    "sensores": { "href": "http://localhost:8080/sensores/satelite/1" },
-    "missao": { "href": "http://localhost:8080/missoes/1" }
+    "self":        { "href": "http://localhost:8080/satelites/1" },
+    "atualizar":   { "href": "http://localhost:8080/satelites/1" },
+    "deletar":     { "href": "http://localhost:8080/satelites/1" },
+    "estatisticas":{ "href": "http://localhost:8080/satelites/1/estatisticas" },
+    "sensores":    { "href": "http://localhost:8080/sensores/satelite/1" },
+    "missao":      { "href": "http://localhost:8080/missoes/1" }
   }
 }
 ```
@@ -87,15 +87,13 @@ curl -s -X POST http://localhost:8080/satelites \
 | `tipoOrbita` | Enum | Não | `LEO`, `MEO`, `GEO` ou `HEO` |
 | `statusSatelite` | Enum | Não | `ATIVO`, `STANDBY`, `MANUTENCAO` ou `DESATIVADO` |
 
-> `tipoOrbita` e `statusSatelite` são opcionais — missões antigas continuam funcionando sem eles.
-
 ---
 
 ## Listar e buscar satélites
 
 Todos os GET de satélites são públicos — sem token.
 
-### Listar todos os satélites
+### Listar todos
 
 ```bash
 curl -s http://localhost:8080/satelites
@@ -115,25 +113,6 @@ curl -s http://localhost:8080/satelites/missao/1
 # Retorna 404 se a missão não existir
 ```
 
-**Resposta paginada:**
-```json
-{
-  "content": [
-    {
-      "id": 1,
-      "nome": "SAT-01",
-      "altitudeKm": 550.0,
-      "missaoId": 1,
-      "nomeMissao": "Missao Alpha",
-      "totalSensores": 4,
-      ...
-    }
-  ],
-  "totalElements": 1,
-  "totalPages": 1
-}
-```
-
 ---
 
 ## Estatísticas de leituras
@@ -144,7 +123,7 @@ Agrega todas as leituras de todos os sensores do satélite em uma única consult
 curl -s http://localhost:8080/satelites/1/estatisticas
 ```
 
-**Resposta — satélite com leituras:**
+**Resposta:**
 ```json
 {
   "sateliteId": 1,
@@ -159,20 +138,7 @@ curl -s http://localhost:8080/satelites/1/estatisticas
 }
 ```
 
-**Resposta — satélite sem leituras ainda:**
-```json
-{
-  "sateliteId": 1,
-  "nomeSatelite": "SAT-01",
-  "mediaValor": 0,
-  "minValor": 0,
-  "maxValor": 0,
-  "totalLeituras": 0,
-  "totalAlertas": 0,
-  "totalCriticos": 0,
-  "ultimaLeitura": null
-}
-```
+Satélite sem leituras retorna todos os contadores como `0` e `ultimaLeitura: null`.
 
 ---
 
@@ -185,7 +151,7 @@ curl -s -X PUT http://localhost:8080/satelites/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR" \
   -d '{
-    "nome": "SAT-01",
+    "nome": "SAT-01-ATUALIZADO",
     "dataLancamento": "2026-02-01",
     "missaoId": 1,
     "coordenadas": {
@@ -196,7 +162,8 @@ curl -s -X PUT http://localhost:8080/satelites/1 \
   }'
 ```
 
-A verificação de role é feita pela **missão atual do satélite**, não pelo `missaoId` do request.
+A verificação de role usa a **missão atual do satélite**, não o `missaoId` do request.  
+Nome duplicado na mesma missão retorna 400.
 
 ### Excluir (apenas DONO)
 
@@ -206,13 +173,11 @@ curl -s -X DELETE http://localhost:8080/satelites/1 \
 # → 204 No Content
 ```
 
-Ao excluir o satélite, todos os seus sensores e leituras são removidos em cascata.
+Todos os sensores e leituras do satélite são removidos em cascata.
 
 ---
 
 ## Links HATEOAS
-
-Todo `SateliteResponse` inclui os seguintes links:
 
 | Link | Método | Destino |
 |------|:------:|---------|
