@@ -1,32 +1,70 @@
 # ── SatMonitor — Docker Compose ─────────────────────────────────
 #
-# Perfil dev  (H2 em memória):
+# Perfil dev  (H2 em memória — desenvolvimento local):
 #   docker compose --profile dev up --build
 #
-# Perfil prod (Oracle FIAP — requer .env com as variáveis abaixo):
-#   docker compose --profile prod up --build
+# Perfil docker (App + PostgreSQL — nuvem / FIAP DevOps):
+#   cp .env.example .env  →  preencher JWT_SECRET, POSTGRES_USER, POSTGRES_PASSWORD
+#   docker compose --profile docker up --build -d
 #
-# Variáveis necessárias para prod (.env ou export):
-#   JWT_SECRET, ORACLE_URL, ORACLE_USER, ORACLE_PASSWORD
+# Variáveis necessárias para perfil docker (.env):
+#   JWT_SECRET, POSTGRES_USER, POSTGRES_PASSWORD
+
+networks:
+  satmonitor-net:
+    driver: bridge
+
+volumes:
+  satmonitor-db-data:
+    name: satmonitor-db-data
 
 services:
 
+  # ── perfil dev: H2 em memória (desenvolvimento local) ──────────────
   satmonitor-dev:
     build: .
     profiles: [dev]
+    container_name: satmonitor-dev
     ports:
       - "8080:8080"
     environment:
       JWT_SECRET: satmonitor-dev-secret-local
 
-  satmonitor-prod:
+  # ── perfil docker: PostgreSQL containerizado ────────────────────────
+  satmonitor-db:
+    image: postgres:16-alpine
+    profiles: [docker]
+    container_name: satmonitor-db-RM562312
+    networks:
+      - satmonitor-net
+    volumes:
+      - satmonitor-db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: satmonitor
+      POSTGRES_USER: ${POSTGRES_USER:-satuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-satuser} -d satmonitor"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  satmonitor-app:
     build: .
-    profiles: [prod]
+    profiles: [docker]
+    container_name: satmonitor-app-RM562312
+    networks:
+      - satmonitor-net
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      POSTGRES_URL: jdbc:postgresql://satmonitor-db:5432/satmonitor
+      POSTGRES_USER: ${POSTGRES_USER:-satuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "8080:8080"
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      JWT_SECRET: ${JWT_SECRET}
-      ORACLE_URL: ${ORACLE_URL}
-      ORACLE_USER: ${ORACLE_USER}
-      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+    depends_on:
+      satmonitor-db:
+        condition: service_healthy

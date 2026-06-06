@@ -8,7 +8,7 @@
 4. [Listar e buscar alertas](#listar-e-buscar-alertas)
 5. [Atualizar status (reconhecer/resolver)](#atualizar-status-reconhecerresolver)
 6. [Links HATEOAS](#links-hateoas)
-7. [Integração com Oracle PL/SQL](#integração-com-oracle-plsql)
+7. [Observações de persistência](#observações-de-persistência)
 8. [Erros](#erros)
 
 ---
@@ -26,7 +26,7 @@ LeituraSensor salva com status=CRITICO
     ↓
 Alerta criado automaticamente (statusAlerta=ATIVO)
     ↓
-TB_ALERTA → trigger Oracle processa
+TB_ALERTA persiste (statusAlerta=ATIVO)
     ↓
 Mobile exibe alerta em vermelho
 ```
@@ -163,14 +163,14 @@ curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RESOLVIDO" \
 
 ---
 
-## Integração com Oracle PL/SQL
+## Observações de persistência
 
-O `TB_ALERTA` é o ponto de integração com o schema Oracle. A API Java insere registros em `TB_ALERTA` e o Oracle responde via trigger:
+O `TB_ALERTA` é gerenciado inteiramente pelo Hibernate. A API Java insere registros automaticamente via `LeituraService`:
 
 | Responsabilidade | Quem |
 |-----------------|------|
 | Criar linha em `TB_ALERTA` | API Java (automático via `LeituraService`) |
-| Processar o alerta (trigger, auditoria) | Oracle PL/SQL |
+| Atualizar status | API Java — endpoint `PATCH /alertas/{id}` |
 | Exibir alerta no app | Mobile — consulta `GET /alertas` |
 
 ---

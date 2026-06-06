@@ -169,11 +169,11 @@ Controller processa a requisição com o operador identificado
 | Variável | Descrição | Obrigatória em prod? |
 |----------|-----------|:--------------------:|
 | `JWT_SECRET` | Secret HMAC256 para assinar tokens | Sim |
-| `ORACLE_URL` | URL JDBC do Oracle FIAP | Sim |
-| `ORACLE_USER` | Usuário Oracle | Sim |
-| `ORACLE_PASSWORD` | Senha Oracle | Sim |
+| `POSTGRES_URL` | URL JDBC do PostgreSQL | Sim (inferida do compose) |
+| `POSTGRES_USER` | Usuário do banco | Sim |
+| `POSTGRES_PASSWORD` | Senha do banco | Sim |
 
-Em desenvolvimento, o secret tem um fallback configurado em `application.properties`. Em produção, a aplicação não sobe se `JWT_SECRET` não estiver definido.
+Em desenvolvimento, o secret tem um fallback configurado em `application.properties`. Em produção (perfil `postgres`), a aplicação não sobe se `JWT_SECRET` não estiver definido.
 
 ### Decisão: por que não há sessão?
 

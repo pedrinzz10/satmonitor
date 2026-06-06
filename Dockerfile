@@ -18,5 +18,8 @@ WORKDIR /app
 
 COPY --from=build /app/build/libs/*.jar app.jar
 
+RUN addgroup -S satgroup && adduser -S satuser -G satgroup
+USER satuser
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

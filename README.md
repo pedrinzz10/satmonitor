@@ -1,6 +1,8 @@
 # SatMonitor — API REST de Monitoramento de Satélites
 
-API Java para monitoramento de satélites em órbita. Desenvolvida como Global Solution 2026/1 da FIAP — 2TDS.
+API REST Java para monitoramento de satélites em órbita. Desenvolvida como Global Solution 2026/1 da FIAP — 2TDS.
+
+> **Solução proposta:** plataforma de telemetria espacial em que operadores criam missões, vinculam satélites com sensores físicos (térmico, pressão, radiação, magnetômetro) e recebem alertas automáticos quando as leituras ultrapassam os limites configurados. A API é conteinerizada com Docker + PostgreSQL e roda em nuvem (Azure VM), integrando-se com aplicação mobile, dispositivos IoT (ESP32) e uma API .NET paralela.
 
 ---
 
@@ -15,7 +17,7 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
                                                ↓
                                         NORMAL | ALERTA | CRITICO
                                                ↓ (se ALERTA ou CRITICO)
-                                             Alerta  →  trigger Oracle (PL/SQL)
+                                             Alerta (gerado automaticamente)
 ```
 
 ---
@@ -29,10 +31,10 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 | Spring Security + JWT | auth0/java-jwt 4.4.0 |
 | Spring HATEOAS | — |
 | Spring Data JPA + Hibernate | — |
-| Oracle Database | Produção (FIAP) |
-| H2 | Desenvolvimento local |
+| PostgreSQL | Container Docker (produção) |
+| H2 | Desenvolvimento local (in-memory) |
 | Springdoc OpenAPI | 2.5.0 |
-| Docker | Deploy na VM Azure |
+| Docker + Docker Compose | Deploy na VM Azure |
 
 ---
 
@@ -366,7 +368,7 @@ TB_SENSOR              ← base (herança JOINED)
   TB_SENSOR_RADIACAO
   TB_MAGNETOMETRO
 TB_LEITURA_SENSOR      ← status calculado pelo servidor | latitude/longitude | qualidade
-TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger Oracle
+TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO
 ```
 
 ---
@@ -382,13 +384,13 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
 | 3 | [`docs/api/Missao.md`](docs/api/Missao.md) | Núcleo da API — roles, fluxo de aprovação, `permitirCowork`, gerenciamento de membros |
 | 4 | [`docs/internals/MissaoService.md`](docs/internals/MissaoService.md) | Detalhes internos das regras de missão: ordem de verificações, invariantes, decisões de design |
 | 5 | [`docs/api/Satelite.md`](docs/api/Satelite.md) | Primeira entidade filha da missão; apresenta as coordenadas orbitais e `@Embeddable` |
-| 6 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | Os 4 tipos de sensor e a herança JOINED no Oracle |
+| 6 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | Os 4 tipos de sensor e a herança JOINED (JOINED table strategy no JPA) |
 | 7 | [`docs/api/Leitura.md`](docs/api/Leitura.md) | Contrato com o ESP32 (IoT) e o algoritmo do `StatusCalculator` |
-| 8 | [`docs/api/Alerta.md`](docs/api/Alerta.md) | Como alertas são gerados automaticamente e integração com Oracle PL/SQL |
+| 8 | [`docs/api/Alerta.md`](docs/api/Alerta.md) | Como alertas são gerados automaticamente e seu ciclo de vida (ATIVO → RECONHECIDO → RESOLVIDO) |
 | 9 | [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa completo de erros — útil para debugar e para adicionar novas exceções |
 | 10 | [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Como rodar a bateria de 241 testes de integração (Postman ou PowerShell) |
 | 11 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório de cobertura JaCoCo |
-| 12 | [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Deploy na Azure com Docker — leitura obrigatória antes de subir em produção |
+| 12 | [How-to — Como executar](#como-executar--how-to) | Passo a passo desde o clone até os containers em nuvem |
 
 ---
 
@@ -403,7 +405,7 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
 | [`docs/api/Satelite.md`](docs/api/Satelite.md) | Satélites, coordenadas orbitais, tipo de órbita, estatísticas |
 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | 4 tipos de sensor, herança JOINED, limites |
 | [`docs/api/Leitura.md`](docs/api/Leitura.md) | StatusCalculator, contrato IoT, geração automática de alertas |
-| [`docs/api/Alerta.md`](docs/api/Alerta.md) | Alertas automáticos, ciclo de vida, integração Oracle |
+| [`docs/api/Alerta.md`](docs/api/Alerta.md) | Alertas automáticos, ciclo de vida (ATIVO → RECONHECIDO → RESOLVIDO) |
 
 ### Internos — Comportamento e regras
 | Arquivo | Conteúdo |
@@ -417,41 +419,155 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
 | [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Coleção Postman e script PowerShell (241 testes de integração) |
 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório JaCoCo |
 
-### Infraestrutura
-| Arquivo | Conteúdo |
-|---------|---------|
-| [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Passo a passo: Docker + Azure VM + Oracle remoto |
+---
+
+## Como executar — How-to
+
+### Arquitetura em nuvem
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Azure VM (Ubuntu 22.04)                   │
+│                                                              │
+│  ┌────────────────────────┐  satmonitor-net  ┌────────────┐  │
+│  │  satmonitor-app        │◄────────────────►│satmonitor  │  │
+│  │  (Spring Boot 3 / JVM) │  jdbc:postgresql │-db         │  │
+│  │  Porta 8080            │                  │(PostgreSQL │  │
+│  │  Usuário: satuser      │                  │ 16-alpine) │  │
+│  │  WORKDIR: /app         │                  │ Vol. named │  │
+│  └──────────┬─────────────┘                  └─────┬──────┘  │
+└─────────────┼────────────────────────────────────-─┼─────────┘
+              │ :8080 (NSG aberta)                   │ :5432
+              ▼                                      ▼
+       Mobile / IoT / Postman               pgAdmin / psql
+       (qualquer cliente HTTP)              (acesso externo ao DB)
+```
+
+> O diagrama completo no padrão Azure está disponível em [`docs/architecture.png`](docs/architecture.png).
 
 ---
 
-## Deploy
+### Pré-requisitos
+
+- **VM Ubuntu 22.04+** (Azure, AWS ou outra nuvem)
+- **Docker** instalado na VM
+- Portas **8080** (API) e **5432** (banco) abertas no firewall/NSG
+
+#### Instalar Docker na VM (Ubuntu)
+
+```bash
+sudo apt update && sudo apt install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo usermod -aG docker $USER && newgrp docker
+```
+
+---
+
+### Passo 1 — Clonar o repositório
+
+```bash
+git clone https://github.com/pedrinzz10/satmonitor.git
+cd satmonitor
+```
+
+### Passo 2 — Criar o arquivo `.env`
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Preencha com valores reais:
+
+```
+JWT_SECRET=string-longa-e-aleatoria-minimo-32-chars
+POSTGRES_USER=satuser
+POSTGRES_PASSWORD=senha-segura-aqui
+```
+
+### Passo 3 — Subir os dois containers em background
+
+```bash
+docker compose --profile docker up --build -d
+```
+
+- `--profile docker` — sobe `satmonitor-app-RM562312` e `satmonitor-db-RM562312`
+- `--build` — reconstrói a imagem da API (obrigatório na primeira execução)
+- `-d` — modo background (segundo plano)
+
+### Passo 4 — Verificar containers e logs
+
+```bash
+# Status
+docker compose --profile docker ps
+
+# Logs em tempo real (ambos os containers)
+docker compose --profile docker logs -f
+# Ctrl+C para parar de seguir
+
+# Health check
+curl http://<IP-DA-VM>:8080/actuator/health
+# → {"status":"UP"}
+```
+
+### Passo 5 — Acessar os containers (evidências)
+
+```bash
+# ── Container da Aplicação ──────────────────────────────────────
+docker container exec satmonitor-app-RM562312 ls -l /app
+docker container exec satmonitor-app-RM562312 pwd
+docker container exec satmonitor-app-RM562312 whoami     # → satuser
+
+# ── Container do Banco ──────────────────────────────────────────
+docker container exec satmonitor-db-RM562312 ls -l /var/lib/postgresql/data
+docker container exec satmonitor-db-RM562312 pwd
+docker container exec satmonitor-db-RM562312 whoami      # → postgres
+```
+
+### Passo 6 — SELECT direto no banco (persistência)
+
+```bash
+# Listar tabelas criadas pelo Hibernate
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "\dt"
+
+# Evidências de CRUD — após usar a API
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, login, nome FROM tb_operador LIMIT 5;"
+
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, nome, status FROM tb_missao LIMIT 5;"
+
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, valor, status FROM tb_leitura_sensor LIMIT 5;"
+
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, tipo_alerta, status_alerta FROM tb_alerta LIMIT 5;"
+```
+
+### Atualizar (novo deploy)
+
+```bash
+git pull
+docker compose --profile docker up --build -d
+```
 
 ### Desenvolvimento local (H2 em memória)
 
 ```bash
 docker compose --profile dev up --build
-```
-
-### Produção (Oracle FIAP)
-
-Crie um arquivo `.env` na raiz do projeto:
-
-```
-JWT_SECRET=seu_secret_aqui
-ORACLE_URL=jdbc:oracle:thin:@<host>:<porta>/<service>
-ORACLE_USER=usuario
-ORACLE_PASSWORD=senha
-```
-
-```bash
-docker compose --profile prod up --build
-```
-
-### Build manual da imagem
-
-```bash
-docker build -t satmonitor .
-docker run -p 8080:8080 --env-file .env -e SPRING_PROFILES_ACTIVE=prod satmonitor
+# API disponível em http://localhost:8080 com banco H2 in-memory
 ```
 
 Health check: `GET /actuator/health`
@@ -463,7 +579,6 @@ Health check: `GET /actuator/health`
 | Disciplina | Integração |
 |------------|----------|
 | **Mobile** (Fabrício) | Consome todos os endpoints; base URL = IP da VM Azure |
-| **Oracle / PL/SQL** (Henrique) | Schema separado; triggers e procedures no banco |
 | **IoT** (Miguel) | ESP32 faz `POST /leituras` com `{valor, sensorId}` — sem token |
-| **DevOps** | Dockeriza a API; container na VM Azure |
-| **.NET** | API espelho para apresentação; schema Oracle separado |
+| **DevOps** | Dockeriza a API + PostgreSQL; containers na VM Azure |
+| **.NET** | API espelho para apresentação |

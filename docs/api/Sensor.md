@@ -249,12 +249,12 @@ Os 4 tipos compartilham campos comuns mas cada um tem um campo específico adici
 
 | Estratégia | Como funciona | Problema |
 |------------|--------------|---------|
-| `SINGLE_TABLE` | Uma tabela só | Colunas específicas ficam nulas para outros tipos — ruim no Oracle |
+| `SINGLE_TABLE` | Uma tabela só | Colunas específicas ficam nulas para outros tipos |
 | `JOINED` | Uma tabela base + uma por subclasse | Um join por consulta polimórfica |
 | `TABLE_PER_CLASS` | Uma tabela completa por tipo | Consultas polimórficas usam UNION — ineficiente |
 
 **JOINED foi escolhida porque:**
-- Oracle é o banco de produção — colunas nulas em massa desperdiçam espaço
+- Evita colunas NULL em massa (melhor normalização)
 - Os 4 tipos são consultados juntos frequentemente (`SELECT * FROM TB_SENSOR`)
 - Sequence `SEQ_SENSOR` é compartilhada entre todos os tipos
 
