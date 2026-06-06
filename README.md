@@ -371,6 +371,27 @@ TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO → trigger 
 
 ---
 
+## Ordem de leitura da documentação
+
+Sugestão de leitura para quem quer entender a API do zero ao deploy:
+
+| # | Arquivo | Por que ler |
+|:-:|---------|-------------|
+| 1 | [`docs/api/Auth.md`](docs/api/Auth.md) | Ponto de entrada — sem entender autenticação JWT nada funciona |
+| 2 | [`docs/api/Agencia.md`](docs/api/Agencia.md) | Entidade mais simples; apresenta o padrão de CRUD e HATEOAS usado em todo o projeto |
+| 3 | [`docs/api/Missao.md`](docs/api/Missao.md) | Núcleo da API — roles, fluxo de aprovação, `permitirCowork`, gerenciamento de membros |
+| 4 | [`docs/internals/MissaoService.md`](docs/internals/MissaoService.md) | Detalhes internos das regras de missão: ordem de verificações, invariantes, decisões de design |
+| 5 | [`docs/api/Satelite.md`](docs/api/Satelite.md) | Primeira entidade filha da missão; apresenta as coordenadas orbitais e `@Embeddable` |
+| 6 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | Os 4 tipos de sensor e a herança JOINED no Oracle |
+| 7 | [`docs/api/Leitura.md`](docs/api/Leitura.md) | Contrato com o ESP32 (IoT) e o algoritmo do `StatusCalculator` |
+| 8 | [`docs/api/Alerta.md`](docs/api/Alerta.md) | Como alertas são gerados automaticamente e integração com Oracle PL/SQL |
+| 9 | [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa completo de erros — útil para debugar e para adicionar novas exceções |
+| 10 | [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Como rodar a bateria de 241 testes de integração (Postman ou PowerShell) |
+| 11 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório de cobertura JaCoCo |
+| 12 | [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Deploy na Azure com Docker — leitura obrigatória antes de subir em produção |
+
+---
+
 ## Documentação detalhada
 
 ### API — Endpoints
