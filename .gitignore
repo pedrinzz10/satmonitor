@@ -36,6 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Logs ###
+*.log
+
 ### Segredos / variáveis de ambiente ###
 # Nunca commitar arquivos .env com credenciais reais (JWT_SECRET, ORACLE_PASSWORD, etc.)
 .env
