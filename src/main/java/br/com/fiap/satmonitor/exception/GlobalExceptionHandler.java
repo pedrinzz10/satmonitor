@@ -2,6 +2,7 @@ package br.com.fiap.satmonitor.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -68,6 +69,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> handleTooManyRequests(TooManyRequestsException ex, HttpServletRequest req) {
         log.warn("Rate limit atingido: {}", ex.getMessage());
         return ResponseEntity.status(429).body(buildErro(429, ex.getMessage(), req));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErroResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest req) {
+        log.warn("Violação de integridade: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(buildErro(409, "Registro já existe ou viola restrição de unicidade", req));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
