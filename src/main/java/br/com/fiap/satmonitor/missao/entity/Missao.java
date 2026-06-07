@@ -30,7 +30,7 @@ public class Missao {
     @Column(nullable = false)
     private String nome;
 
-    @Column(columnDefinition = "CLOB")
+    @Column(columnDefinition = "TEXT")
     private String descricao;
 
     @NotNull
