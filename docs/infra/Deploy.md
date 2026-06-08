@@ -634,7 +634,7 @@ docker container exec satmonitor-db-RM562312 \
 # Operadores vinculados a missões (tb_operador_missao — tabela de relacionamento)
 docker container exec satmonitor-db-RM562312 \
   psql -U satuser -d satmonitor \
-  -c "SELECT om.id, o.login, m.nome AS missao, om.role
+  -c "SELECT o.id, o.login, m.nome AS missao, om.role
       FROM tb_operador_missao om
       JOIN tb_operador o ON o.id = om.operador_id
       JOIN tb_missao m ON m.id = om.missao_id;"
