@@ -44,6 +44,9 @@ ROTEIRO_VIDEO.md
 ROTEIRO_DEPLOY.md
 SatMonitor_Postman.json
 
+### Claude Code (configurações locais da IDE) ###
+.claude/
+
 ### Variáveis de ambiente ###
 .env
 .env.*
