@@ -6,8 +6,35 @@ on:
       - main
 
 jobs:
-  deploy:
+  test:
+    name: Rodar testes
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Rodar testes
+        run: ./gradlew test --no-daemon
+
+  deploy:
+    name: Deploy na VM
+    runs-on: ubuntu-latest
+    needs: test
 
     steps:
       - name: Deploy via SSH
@@ -21,3 +48,26 @@ jobs:
             git pull origin main
             docker compose --profile docker up --build -d
             docker compose --profile docker ps
+
+      - name: Health check da API
+        run: |
+          echo "Aguardando API subir..."
+          sleep 20
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://20.122.186.91:8080/actuator/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check falhou — HTTP $STATUS"
+            exit 1
+          fi
+          echo "API respondendo — HTTP $STATUS"
+
+      - name: Notificar falha no commit
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: '❌ Deploy falhou. Verifique os logs em: ' + context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId
+            })
