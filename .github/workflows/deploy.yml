@@ -29,7 +29,9 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*') }}
 
       - name: Rodar testes
-        run: ./gradlew test --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew test --no-daemon
 
   deploy:
     name: Deploy na VM
