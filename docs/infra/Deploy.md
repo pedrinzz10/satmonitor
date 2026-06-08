@@ -163,7 +163,7 @@ az vm create \
 ```
 
 > `Standard_D2s_v3` = 2 vCPUs + 8 GB RAM — suficiente para rodar Spring Boot + PostgreSQL com folga.  
-> `--generate-ssh-keys` cria o par de chaves automaticamente em `~/.ssh/`.
+> `--generate-ssh-keys` gera o par de chaves e registra a pública na VM automaticamente, salvando a privada em `~/.ssh/id_rsa` **do Cloud Shell**. Essa pasta é efêmera — pode ser apagada quando a sessão do Cloud Shell é encerrada. Salve a chave em `~/clouddrive/` se quiser preservar (veja seção [Acesso SSH à VM](#1-acesso-ssh-à-vm)).
 
 ---
 
@@ -208,88 +208,85 @@ A partir daqui todos os comandos são executados **dentro da VM**.
 
 ---
 
-### Cenário A — Azure Cloud Shell (sempre funciona)
+### Como o acesso SSH funciona neste projeto
 
-A chave foi gerada pelo `--generate-ssh-keys` e já está em `~/.ssh/` do Cloud Shell da sua conta FIAP (`rm562312@fiap.com.br`).
+A VM foi criada com `--generate-ssh-keys`. O Azure gerou um par de chaves e registrou a pública no `authorized_keys` da VM. A chave privada foi salva em `~/.ssh/id_rsa` **do Cloud Shell** — que é uma pasta efêmera e pode ser perdida quando a sessão encerra.
 
-```bash
-ssh azureuser@20.122.186.91
+O `authorized_keys` da VM funciona como uma **lista de chaves autorizadas**. Cada chave é uma linha independente. O comando `az vm user update` sempre **acrescenta** uma nova linha — nunca apaga as anteriores. Isso significa que você pode registrar quantos computadores quiser, todos com acesso simultâneo.
+
+**Estado atual do `authorized_keys` da VM:**
+```
+chave original do --generate-ssh-keys (Cloud Shell FIAP)
+chave id_ed25519 do Windows (C:\Users\Administrador\.ssh\)
+chave id_ed25519 do Linux /home/pedro
 ```
 
 ---
 
-### Cenário B — Computador já cadastrado
+### Cenário A — PC já cadastrado (Windows ou Linux)
 
-Se sua chave pública já foi registrada na VM (via `az vm user update`), basta apontar para a chave privada local:
+Se sua chave já foi registrada, basta:
 
 ```bash
-# Linux / macOS / Windows PowerShell
+# Windows (PowerShell)
+ssh -i $env:USERPROFILE\.ssh\id_ed25519 azureuser@20.122.186.91
+
+# Linux / macOS / Cloud Shell
 ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
 ```
 
 ---
 
-### Cenário C — Computador novo (registrar uma nova chave)
+### Cenário B — PC novo (ainda sem chave registrada)
 
-**Passo 1 — Verificar se já existe um par de chaves**
-
-```bash
-ls ~/.ssh/
-```
-
-Se aparecer `id_ed25519` (ou `id_rsa`), a chave já existe — pule para o Passo 3.
-
-**Passo 2 — Gerar um novo par de chaves (se não existir)**
+Tudo em três comandos — gera a chave, registra na VM e conecta:
 
 ```bash
-ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
-# Pressione Enter nas perguntas para usar os valores padrão
-```
-
-**Passo 3 — Copiar a chave pública**
-
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-
-Copie o conteúdo completo (começa com `ssh-ed25519 ...`).
-
-**Passo 4 — Registrar a chave na VM via Azure Cloud Shell**
-
-Acesse **portal.azure.com** com `rm562312@fiap.com.br` → abra o **Cloud Shell** e execute:
-
-```bash
+ssh-keygen -t ed25519 -C "rm562312@fiap.com.br" -f ~/.ssh/id_ed25519 -N ""
 az vm user update \
   --resource-group rg-satmonitor \
   --name vm-satmonitor-RM562312 \
   --username azureuser \
-  --ssh-key-value "COLE_AQUI_O_CONTEUDO_DO_id_ed25519.pub"
-```
-
-Saída esperada: `"provisioningState": "Succeeded"`
-
-**Passo 5 — Conectar**
-
-```bash
+  --ssh-key-value "$(cat ~/.ssh/id_ed25519.pub)"
 ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
 ```
 
+> O `az vm user update` precisa ser rodado em um terminal com `az` disponível e logado com `rm562312@fiap.com.br` — use o **Azure Cloud Shell** (portal.azure.com → ícone `>_`) se não tiver `az` local.
+
+Saída esperada do `az vm user update`: `"provisioningState": "Succeeded"`
+
 ---
 
-### Múltiplas chaves no authorized_keys
+### Cenário C — Cloud Shell com sessão resetada (chave efêmera perdida)
 
-Cada `az vm user update` **acrescenta** a chave — não substitui as anteriores. Você pode ter quantos computadores quiser com acesso simultâneo.
+O Cloud Shell da Azure armazena `~/.ssh/` em uma pasta temporária que pode ser apagada entre sessões. Se `ssh -i ~/.ssh/id_rsa` falhar com `No such file or directory`, a chave foi perdida. Resolução idêntica ao Cenário B — gere uma nova e registre.
+
+Para evitar perder a chave do Cloud Shell novamente, salve em `~/clouddrive/` (armazenamento persistente):
+
+```bash
+cp ~/.ssh/id_ed25519 ~/clouddrive/id_ed25519_satmonitor
+cp ~/.ssh/id_ed25519.pub ~/clouddrive/id_ed25519_satmonitor.pub
+```
+
+Para restaurar numa sessão nova:
+```bash
+cp ~/clouddrive/id_ed25519_satmonitor ~/.ssh/id_ed25519
+chmod 600 ~/.ssh/id_ed25519
+ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
+```
 
 ---
 
 ### Remover acesso de um computador
 
-Acesse a VM (pelo Cloud Shell ou por um PC já autorizado) e edite o arquivo:
+Entre na VM por qualquer acesso que ainda funcione e edite o arquivo diretamente:
 
 ```bash
-ssh azureuser@20.122.186.91   # entre pela Cloud Shell se necessário
+ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
 nano ~/.ssh/authorized_keys   # apague a linha da chave que quer revogar
 ```
+
+Cada linha é uma chave. Basta deletar a linha correspondente ao computador que quer bloquear.
 
 ---
 
