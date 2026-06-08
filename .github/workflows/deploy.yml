@@ -53,7 +53,7 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/satmonitor
-            git pull origin main
+            git fetch origin && git reset --hard origin/main
             docker compose --profile docker up --build -d
             docker compose --profile docker ps
 
