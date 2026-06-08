@@ -8,16 +8,17 @@ Cobertura total dos requisitos FIAP DevOps — containers, evidências, SELECTs 
 ## Índice
 
 0. [Criar infraestrutura na Azure](#0-criar-infraestrutura-na-azure)
-1. [Arquitetura](#arquitetura)
-2. [O que foi feito nos arquivos](#o-que-foi-feito-nos-arquivos)
-3. [Pré-requisitos](#pré-requisitos)
-4. [Passo a passo — do clone ao ar](#passo-a-passo--do-clone-ao-ar)
-5. [Evidências obrigatórias](#evidências-obrigatórias)
-6. [CRUD via API + SELECT no banco](#crud-via-api--select-no-banco)
-7. [Persistência de dados (volume nomeado)](#persistência-de-dados-volume-nomeado)
-8. [Comandos do dia a dia](#comandos-do-dia-a-dia)
-9. [Deploy automático — GitHub Actions](#deploy-automático--github-actions)
-10. [Problemas comuns](#problemas-comuns)
+1. [Acesso SSH à VM](#1-acesso-ssh-à-vm)
+2. [Arquitetura](#arquitetura)
+3. [O que foi feito nos arquivos](#o-que-foi-feito-nos-arquivos)
+4. [Pré-requisitos](#pré-requisitos)
+5. [Passo a passo — do clone ao ar](#passo-a-passo--do-clone-ao-ar)
+6. [Evidências obrigatórias](#evidências-obrigatórias)
+7. [CRUD via API + SELECT no banco](#crud-via-api--select-no-banco)
+8. [Persistência de dados (volume nomeado)](#persistência-de-dados-volume-nomeado)
+9. [Comandos do dia a dia](#comandos-do-dia-a-dia)
+10. [Deploy automático — GitHub Actions](#deploy-automático--github-actions)
+11. [Problemas comuns](#problemas-comuns)
 
 ---
 
@@ -186,7 +187,109 @@ Anote esse IP — você vai usar para conectar via SSH e para testar a API.
 ssh azureuser@<IP-DA-VM>
 ```
 
+> `--generate-ssh-keys` armazena a chave gerada em `~/.ssh/` **do Cloud Shell**.
+> O SSH acima funciona diretamente do Cloud Shell.
+> Para acessar de outro computador, veja a seção [Acesso SSH à VM](#1-acesso-ssh-à-vm).
+
 A partir daqui todos os comandos são executados **dentro da VM**.
+
+---
+
+## 1. Acesso SSH à VM
+
+**Dados de referência**
+
+| Campo | Valor |
+|---|---|
+| IP público | `20.122.186.91` |
+| Usuário | `azureuser` |
+| Resource Group | `rg-satmonitor` |
+| Nome da VM | `vm-satmonitor-RM562312` |
+
+---
+
+### Cenário A — Azure Cloud Shell (sempre funciona)
+
+A chave foi gerada pelo `--generate-ssh-keys` e já está em `~/.ssh/` do Cloud Shell da sua conta FIAP (`rm562312@fiap.com.br`).
+
+```bash
+ssh azureuser@20.122.186.91
+```
+
+---
+
+### Cenário B — Computador já cadastrado
+
+Se sua chave pública já foi registrada na VM (via `az vm user update`), basta apontar para a chave privada local:
+
+```bash
+# Linux / macOS / Windows PowerShell
+ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
+```
+
+---
+
+### Cenário C — Computador novo (registrar uma nova chave)
+
+**Passo 1 — Verificar se já existe um par de chaves**
+
+```bash
+ls ~/.ssh/
+```
+
+Se aparecer `id_ed25519` (ou `id_rsa`), a chave já existe — pule para o Passo 3.
+
+**Passo 2 — Gerar um novo par de chaves (se não existir)**
+
+```bash
+ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
+# Pressione Enter nas perguntas para usar os valores padrão
+```
+
+**Passo 3 — Copiar a chave pública**
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+Copie o conteúdo completo (começa com `ssh-ed25519 ...`).
+
+**Passo 4 — Registrar a chave na VM via Azure Cloud Shell**
+
+Acesse **portal.azure.com** com `rm562312@fiap.com.br` → abra o **Cloud Shell** e execute:
+
+```bash
+az vm user update \
+  --resource-group rg-satmonitor \
+  --name vm-satmonitor-RM562312 \
+  --username azureuser \
+  --ssh-key-value "COLE_AQUI_O_CONTEUDO_DO_id_ed25519.pub"
+```
+
+Saída esperada: `"provisioningState": "Succeeded"`
+
+**Passo 5 — Conectar**
+
+```bash
+ssh -i ~/.ssh/id_ed25519 azureuser@20.122.186.91
+```
+
+---
+
+### Múltiplas chaves no authorized_keys
+
+Cada `az vm user update` **acrescenta** a chave — não substitui as anteriores. Você pode ter quantos computadores quiser com acesso simultâneo.
+
+---
+
+### Remover acesso de um computador
+
+Acesse a VM (pelo Cloud Shell ou por um PC já autorizado) e edite o arquivo:
+
+```bash
+ssh azureuser@20.122.186.91   # entre pela Cloud Shell se necessário
+nano ~/.ssh/authorized_keys   # apague a linha da chave que quer revogar
+```
 
 ---
 
