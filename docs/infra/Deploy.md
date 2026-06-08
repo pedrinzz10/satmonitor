@@ -340,13 +340,23 @@ spring.h2.console.enabled=false
 
 ### `.env.example`
 
+O projeto inclui um `.env.example` com os valores já configurados para o deploy. As credenciais reais não são exibidas na documentação por segurança.
+
 ```env
 JWT_SECRET=<string-longa-minimo-32-chars>
 POSTGRES_USER=satuser
 POSTGRES_PASSWORD=<senha-segura>
 ```
 
-Copiar para `.env` e preencher antes de subir os containers.
+O arquivo `.env` está no `.gitignore` e nunca é commitado. Para criar o `.env` a partir do exemplo:
+
+```bash
+cp .env.example .env
+```
+
+- `JWT_SECRET` — segredo usado para assinar os tokens JWT. Deve ter no mínimo 32 caracteres. Sem ele a aplicação não sobe.
+- `POSTGRES_USER` — usuário do banco PostgreSQL criado no container.
+- `POSTGRES_PASSWORD` — senha do banco. Usada tanto pelo container do banco quanto pela API para conectar.
 
 ---
 
