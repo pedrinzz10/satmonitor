@@ -381,6 +381,7 @@ TB_SOLICITACAO_ENTRADA ← controla fluxo de aprovação de cowork
 | 9 | [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa completo de erros |
 | 10 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit e relatório JaCoCo |
 | 11 | [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Infraestrutura Azure, Docker Compose e GitHub Actions |
+| 12 | [`docs/infra/VM.md`](docs/infra/VM.md) | Arquitetura completa da VM: specs, containers, rede e diagrama |
 
 ---
 
@@ -412,6 +413,7 @@ TB_SOLICITACAO_ENTRADA ← controla fluxo de aprovação de cowork
 | Arquivo | Conteúdo |
 |---------|---------|
 | [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Infraestrutura Azure, Docker Compose, GitHub Actions |
+| [`docs/infra/VM.md`](docs/infra/VM.md) | Arquitetura completa da VM: specs, containers, rede e diagrama |
 | [`COMANDOS_DEPLOY.md`](COMANDOS_DEPLOY.md) | Comandos prontos para copiar durante o deploy |
 
 ---
