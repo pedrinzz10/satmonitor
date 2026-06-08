@@ -106,8 +106,16 @@ $ATAC_LOGIN   = "sec-atac@sec.dev"
 $ATAC_SENHA   = "senhaAtacSec123"
 $MISSAO_SENHA = "missaoSecSenha1"
 
-POST "/auth/registrar" (@{ login = $DONO_LOGIN; senha = $DONO_SENHA; nome = "Dono Sec" } | ConvertTo-Json -Compress)
-POST "/auth/registrar" (@{ login = $ATAC_LOGIN; senha = $ATAC_SENHA; nome = "Atac Sec" } | ConvertTo-Json -Compress)
+# agencia necessaria para registrar operadores (agenciaId @NotNull)
+POST "/agencias" (@{ nome = "Agencia Sec"; siglaPais = "BR" } | ConvertTo-Json -Compress)
+$AGENCIA_SEC_ID = (j).id
+if (-not $AGENCIA_SEC_ID) {
+    Write-Host "  [ERRO] Falha ao criar agencia de teste. Reinicie o app (banco H2 limpo) e tente novamente." -ForegroundColor Red
+    exit 1
+}
+
+POST "/auth/registrar" (@{ login = $DONO_LOGIN; senha = $DONO_SENHA; nome = "Dono Sec"; agenciaId = $AGENCIA_SEC_ID } | ConvertTo-Json -Compress)
+POST "/auth/registrar" (@{ login = $ATAC_LOGIN; senha = $ATAC_SENHA; nome = "Atac Sec"; agenciaId = $AGENCIA_SEC_ID } | ConvertTo-Json -Compress)
 
 POST "/auth/login" (@{ login = $DONO_LOGIN; senha = $DONO_SENHA } | ConvertTo-Json -Compress)
 $TOKEN_DONO = (j).token
@@ -126,7 +134,12 @@ if (-not $MISSAO_ID) {
     Write-Host "  [ERRO] Falha ao criar missao principal. Banco pode nao estar limpo." -ForegroundColor Red
     exit 1
 }
-POST "/missoes/$MISSAO_ID/entrar" (@{ senha = $MISSAO_SENHA } | ConvertTo-Json -Compress) $TOKEN_ATAC
+POST "/missoes/$MISSAO_ID/solicitar" (@{ senha = $MISSAO_SENHA } | ConvertTo-Json -Compress) $TOKEN_ATAC
+$SOLICITA_ATAC_ID = (j).id
+if ($SOLICITA_ATAC_ID) {
+    # solicitar cria solicitacao pendente -- DONO aprova para atac virar MEMBRO
+    do_request "PATCH" "/missoes/$MISSAO_ID/solicitacoes/$SOLICITA_ATAC_ID/aprovar" $null $TOKEN_DONO
+}
 
 # missao privada (somente dono -- para teste IDOR)
 POST "/missoes" (@{ nome = "Missao Sec Privada"; senhaMissao = "privadaSecSen1"; dataLancamento = "2024-01-01"; status = "PLANEJADA" } | ConvertTo-Json -Compress) $TOKEN_DONO
@@ -192,20 +205,21 @@ $hdrs = $script:HEADERS
 
 # Bypass de autenticacao
 section "3. Bypass de autenticacao (tokens invalidos)"
-$b = @{ nome = "Agencia Auth Test"; siglaPais = "US" } | ConvertTo-Json -Compress
-POST "/agencias" $b
+# usa POST /missoes (endpoint autenticado) -- POST /agencias e publico intencionalmente
+$b = @{ nome = "Missao Auth Test"; senhaMissao = "authtest123"; dataLancamento = "2024-01-01"; status = "PLANEJADA" } | ConvertTo-Json -Compress
+POST "/missoes" $b
 if ($script:STATUS -in 401,403) { safe "Sem token -> $($script:STATUS)" }
 else { vuln "Sem token retornou $($script:STATUS) (esperado 401 ou 403)" }
 
-POST "/agencias" $b "token-completamente-invalido"
+POST "/missoes" $b "token-completamente-invalido"
 if ($script:STATUS -in 401,403) { safe "Token invalido -> $($script:STATUS)" }
 else { vuln "Token invalido retornou $($script:STATUS) (esperado 401 ou 403)" }
 
-POST "/agencias" $b ""
+POST "/missoes" $b ""
 if ($script:STATUS -in 401,403) { safe "Token em branco -> $($script:STATUS)" }
 else { vuln "Token em branco retornou $($script:STATUS) (esperado 401 ou 403)" }
 
-POST "/agencias" $b "null"
+POST "/missoes" $b "null"
 if ($script:STATUS -in 401,403) { safe "Token literal 'null' -> $($script:STATUS)" }
 else { vuln "Token 'null' retornou $($script:STATUS) (esperado 401 ou 403)" }
 
