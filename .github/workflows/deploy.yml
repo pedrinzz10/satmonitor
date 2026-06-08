@@ -1,4 +1,4 @@
-name: Deploy na Azure
+name: Deploy na Azure VM
 
 on:
   push:
