@@ -28,7 +28,7 @@ Execute estes comandos no **Azure Cloud Shell** (portal.azure.com → ícone `>_
 
 ```bash
 RESOURCE_GROUP="rg-satmonitor"
-LOCATION="brazilsouth"
+LOCATION="eastus2"
 VNET_NAME="vnet-satmonitor"
 SUBNET_NAME="subnet-satmonitor"
 NSG_NAME="nsg-satmonitor"
@@ -155,12 +155,12 @@ az vm create \
   --name $VM_NAME \
   --nics $NIC_NAME \
   --image Ubuntu2204 \
-  --size Standard_B2s \
+  --size Standard_D2s_v3 \
   --admin-username $ADMIN_USER \
   --generate-ssh-keys
 ```
 
-> `Standard_B2s` = 2 vCPUs + 4 GB RAM — suficiente para rodar Spring Boot + PostgreSQL.  
+> `Standard_D2s_v3` = 2 vCPUs + 8 GB RAM — suficiente para rodar Spring Boot + PostgreSQL com folga.  
 > `--generate-ssh-keys` cria o par de chaves automaticamente em `~/.ssh/`.
 
 ---
@@ -341,9 +341,9 @@ spring.h2.console.enabled=false
 ### `.env.example`
 
 ```env
-JWT_SECRET=troque-por-string-longa-e-aleatoria-minimo-32-chars
+JWT_SECRET=<string-longa-minimo-32-chars>
 POSTGRES_USER=satuser
-POSTGRES_PASSWORD=troque-por-senha-segura
+POSTGRES_PASSWORD=<senha-segura>
 ```
 
 Copiar para `.env` e preencher antes de subir os containers.
@@ -398,18 +398,9 @@ cd satmonitor
 
 ```bash
 cp .env.example .env
-nano .env
 ```
 
-Preencher com valores reais:
-
-```
-JWT_SECRET=SuaStringLongaEAleatóriaAqui1234567890AbCdEfGh
-POSTGRES_USER=satuser
-POSTGRES_PASSWORD=MinhaS3nhaSegura!
-```
-
-> `JWT_SECRET` deve ter no mínimo 32 caracteres. Sem ele, a aplicação não sobe.
+O `.env.example` já contém os valores configurados. O arquivo `.env` está no `.gitignore` e nunca é commitado.
 
 ### 3. Subir os dois containers em background
 
@@ -739,7 +730,7 @@ docker compose --profile docker up --build -d
 ```bash
 # ① Clone e .env
 git clone https://github.com/pedrinzz10/satmonitor.git && cd satmonitor
-cp .env.example .env && nano .env
+cp .env.example .env
 
 # ② Subir em background
 docker compose --profile docker up --build -d

@@ -45,8 +45,7 @@ ROTEIRO_DEPLOY.md
 COMANDOS_DEPLOY.md
 SatMonitor_Postman.json
 
-### Segredos / variáveis de ambiente ###
-# Nunca commitar arquivos .env com credenciais reais (JWT_SECRET, ORACLE_PASSWORD, etc.)
+### Variáveis de ambiente ###
 .env
 .env.*
 !.env.example
