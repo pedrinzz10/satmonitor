@@ -16,7 +16,8 @@ Cobertura total dos requisitos FIAP DevOps — containers, evidências, SELECTs 
 6. [CRUD via API + SELECT no banco](#crud-via-api--select-no-banco)
 7. [Persistência de dados (volume nomeado)](#persistência-de-dados-volume-nomeado)
 8. [Comandos do dia a dia](#comandos-do-dia-a-dia)
-9. [Problemas comuns](#problemas-comuns)
+9. [Deploy automático — GitHub Actions](#deploy-automático--github-actions)
+10. [Problemas comuns](#problemas-comuns)
 
 ---
 
@@ -731,6 +732,36 @@ docker container inspect satmonitor-db-RM562312 | grep -A5 Health
 ```bash
 docker compose --profile docker down -v
 docker compose --profile docker up --build -d
+```
+
+---
+
+## Deploy automático — GitHub Actions
+
+O repositório inclui um workflow em `.github/workflows/deploy.yml` que faz o deploy automaticamente na VM toda vez que há push na branch `main`.
+
+### Fluxo
+
+```
+push na main → GitHub Actions → SSH na VM → git pull → docker compose up --build -d
+```
+
+### Configuração necessária (uma vez)
+
+1. Pegar a chave SSH privada da VM no Cloud Shell:
+```bash
+cat ~/.ssh/id_rsa
+```
+
+2. Adicionar como secret no GitHub:
+   - Repositório → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+   - Nome: `VM_SSH_KEY`
+   - Valor: conteúdo completo da chave privada
+
+### Verificar se a VM está no último commit
+
+```bash
+cd ~/satmonitor && git log --oneline -3
 ```
 
 ---

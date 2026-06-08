@@ -42,7 +42,6 @@ out/
 ### Arquivos temporários de gravação ###
 ROTEIRO_VIDEO.md
 ROTEIRO_DEPLOY.md
-COMANDOS_DEPLOY.md
 SatMonitor_Postman.json
 
 ### Variáveis de ambiente ###
