@@ -56,6 +56,7 @@ public class SecurityConfig {
                         .addHeaderWriter(new StaticHeadersWriter(
                                 "Permissions-Policy", "geolocation=(), microphone=(), camera=()")))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/registrar").permitAll()
                         .requestMatchers(HttpMethod.POST, "/agencias").permitAll()
                         .requestMatchers(HttpMethod.GET,
