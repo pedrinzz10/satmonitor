@@ -33,20 +33,38 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 | Spring Data JPA + Hibernate | — |
 | PostgreSQL | Container Docker (produção) |
 | H2 | Desenvolvimento local (in-memory) |
-| Springdoc OpenAPI | 2.5.0 |
+| Springdoc OpenAPI | 2.8.0 |
 | Docker + Docker Compose | Deploy na VM Azure |
+| GitHub Actions | CI/CD — testes + deploy automático |
+
+---
+
+## CI/CD — GitHub Actions
+
+Todo push na branch `main` dispara automaticamente:
+
+1. Roda os testes JUnit (`./gradlew test`)
+2. Se os testes passarem: deploy via SSH na VM Azure (`git pull` + `docker compose up --build -d`)
+3. Health check em `/actuator/health` — confirma que a API subiu
+4. Se falhar em qualquer etapa: posta comentário no commit com link para os logs
+
+Workflow: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 
 ---
 
 ## Início rápido
 
-### 1. Subir a aplicação
+### 1. Criar uma agência (público, sem token)
 
-```bash
-./gradlew bootRun
-# API disponível em http://localhost:8080
-# Swagger UI em http://localhost:8080/swagger-ui.html
+`POST /agencias`
+```json
+{
+  "nome": "Agencia Espacial Brasileira",
+  "siglaPais": "BR",
+  "tipoAgencia": "Governamental"
+}
 ```
+`→ 201 Created`
 
 ### 2. Registrar um operador
 
@@ -55,10 +73,11 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 {
   "login": "admin@sat.dev",
   "senha": "senha123",
-  "nome": "Administrador"
+  "nome": "Administrador",
+  "agenciaId": 1
 }
 ```
-`→ 201 Created (corpo vazio)`
+`→ 201 Created`
 
 ### 3. Fazer login e obter o token JWT
 
@@ -76,27 +95,7 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 }
 ```
 
-### 4. Criar uma agência (com token)
-
-`POST /agencias` · `Authorization: Bearer <token>`
-```json
-{
-  "nome": "Agência Espacial Brasileira",
-  "siglaPais": "BR",
-  "tipoAgencia": "Governamental"
-}
-```
-`→ 201 Created`
-```json
-{
-  "id": 1,
-  "nome": "Agência Espacial Brasileira",
-  "siglaPais": "BR",
-  "tipoAgencia": "Governamental"
-}
-```
-
-### 5. Criar uma missão (com token)
+### 4. Criar uma missão (com token)
 
 `POST /missoes` · `Authorization: Bearer <token>`
 ```json
@@ -107,15 +106,12 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
   "status": "PLANEJADA",
   "senhaMissao": "acesso123",
   "agenciaId": 1,
-  "objetivo": "Monitorar temperatura orbital",
-  "dataFimPrevista": "2027-06-01"
+  "permitirCowork": true
 }
 ```
 `→ 201 Created com o id da missão`
 
-> `agenciaId`, `objetivo` e `dataFimPrevista` são opcionais.
-
-### 6. Criar um satélite (com token)
+### 5. Criar um satélite (com token)
 
 `POST /satelites` · `Authorization: Bearer <token>`
 ```json
@@ -134,9 +130,7 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 ```
 `→ 201 Created`
 
-> `tipoOrbita`, `statusSatelite` e `longitudeNodo` são opcionais.
-
-### 7. Criar um sensor (com token)
+### 6. Criar um sensor (com token)
 
 `POST /sensores` · `Authorization: Bearer <token>`
 ```json
@@ -153,7 +147,7 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 ```
 `→ 201 Created`
 
-### 8. Registrar leitura (sem token — endpoint IoT)
+### 7. Registrar leitura (sem token — endpoint IoT)
 
 `POST /leituras`
 ```json
@@ -161,8 +155,7 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
   "valor": 95.3,
   "sensorId": 1,
   "latitude": -23.5505,
-  "longitude": -46.6333,
-  "qualidade": "BOA"
+  "longitude": -46.6333
 }
 ```
 `→ 201 Created`
@@ -170,12 +163,9 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 {
   "id": 1,
   "valor": 95.3,
-  "status": "CRITICO",
-  "qualidade": "BOA"
+  "status": "CRITICO"
 }
 ```
-
-> `latitude`, `longitude` e `qualidade` são opcionais. `qualidade` aceita `BOA`, `DEGRADADA` ou `INVALIDA` (padrão: `BOA`).
 
 ---
 
@@ -216,8 +206,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 
 **Rotas públicas (sem token):**
 - `POST /auth/login` e `POST /auth/registrar`
+- `POST /agencias` — qualquer um pode criar uma agência
 - Todos os `GET /satelites/**`, `GET /sensores/**`, `GET /leituras/**`
 - `GET /agencias/**`, `GET /alertas/**`
+- `GET /missoes/buscar` — diretório de missões abertas
 - `POST /leituras` — ESP32 (IoT) envia leituras sem token
 - `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`
 
@@ -239,7 +231,7 @@ Cada operador tem uma role específica em cada missão:
 | Excluir satélite, sensor, missão | ✓ | — | — |
 | Gerenciar membros | ✓ | — | — |
 
-O criador da missão começa como **DONO**. Novos membros solicitam entrada via `POST /missoes/{id}/solicitar` (com a senha da missão) e ficam **PENDENTE** até um SUPERVISOR ou DONO aprovar. Quando `permitirCowork=false` (padrão), apenas operadores da mesma agência podem solicitar.
+O criador da missão começa como **DONO**. Novos membros solicitam entrada via `POST /missoes/{id}/solicitar` (com a senha da missão) e ficam **PENDENTE** até um SUPERVISOR ou DONO aprovar.
 
 ---
 
@@ -248,7 +240,7 @@ O criador da missão começa como **DONO**. Novos membros solicitam entrada via 
 ### Agências
 | Método | Rota | Auth | Descrição |
 |--------|------|:----:|-----------|
-| POST | `/agencias` | ✓ | Cria agência espacial |
+| POST | `/agencias` | — | Cria agência espacial |
 | GET | `/agencias` | — | Lista paginada |
 | GET | `/agencias/{id}` | — | Busca por id |
 | PUT | `/agencias/{id}` | ✓ | Atualiza |
@@ -349,7 +341,7 @@ Todos os erros seguem o mesmo formato:
 | 401 | Token ausente/expirado ou senha da missão errada |
 | 403 | Sem permissão (role insuficiente ou não é membro) |
 | 404 | Recurso não encontrado |
-| 409 | Conflito (ex: operador já é membro da missão) |
+| 409 | Conflito (ex: operador já é membro, nome de agência duplicado) |
 | 500 | Erro interno (detalhes apenas nos logs) |
 
 ---
@@ -357,7 +349,7 @@ Todos os erros seguem o mesmo formato:
 ## Modelo de dados simplificado
 
 ```
-TB_AGENCIA             ← agência espacial (opcional em Missao)
+TB_AGENCIA             ← agência espacial
 TB_OPERADOR
 TB_MISSAO              ← senha BCrypt | FK opcional p/ TB_AGENCIA
 TB_OPERADOR_MISSAO     ← junction table com role (DONO/SUPERVISOR/MEMBRO)
@@ -367,30 +359,28 @@ TB_SENSOR              ← base (herança JOINED)
   TB_SENSOR_PRESSAO
   TB_SENSOR_RADIACAO
   TB_MAGNETOMETRO
-TB_LEITURA_SENSOR      ← status calculado pelo servidor | latitude/longitude | qualidade
+TB_LEITURA_SENSOR      ← status calculado pelo servidor | latitude/longitude
 TB_ALERTA              ← gerado automaticamente em ALERTA/CRITICO
+TB_SOLICITACAO_ENTRADA ← controla fluxo de aprovação de cowork
 ```
 
 ---
 
 ## Ordem de leitura da documentação
 
-Sugestão de leitura para quem quer entender a API do zero ao deploy:
-
 | # | Arquivo | Por que ler |
 |:-:|---------|-------------|
 | 1 | [`docs/api/Auth.md`](docs/api/Auth.md) | Ponto de entrada — sem entender autenticação JWT nada funciona |
-| 2 | [`docs/api/Agencia.md`](docs/api/Agencia.md) | Entidade mais simples; apresenta o padrão de CRUD e HATEOAS usado em todo o projeto |
-| 3 | [`docs/api/Missao.md`](docs/api/Missao.md) | Núcleo da API — roles, fluxo de aprovação, `permitirCowork`, gerenciamento de membros |
-| 4 | [`docs/internals/MissaoService.md`](docs/internals/MissaoService.md) | Detalhes internos das regras de missão: ordem de verificações, invariantes, decisões de design |
-| 5 | [`docs/api/Satelite.md`](docs/api/Satelite.md) | Primeira entidade filha da missão; apresenta as coordenadas orbitais e `@Embeddable` |
-| 6 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | Os 4 tipos de sensor e a herança JOINED (JOINED table strategy no JPA) |
-| 7 | [`docs/api/Leitura.md`](docs/api/Leitura.md) | Contrato com o ESP32 (IoT) e o algoritmo do `StatusCalculator` |
-| 8 | [`docs/api/Alerta.md`](docs/api/Alerta.md) | Como alertas são gerados automaticamente e seu ciclo de vida (ATIVO → RECONHECIDO → RESOLVIDO) |
-| 9 | [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa completo de erros — útil para debugar e para adicionar novas exceções |
-| 10 | [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Como rodar a bateria de 241 testes de integração (Postman ou PowerShell) |
-| 11 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório de cobertura JaCoCo |
-| 12 | [How-to — Como executar](#como-executar--how-to) | Passo a passo desde o clone até os containers em nuvem |
+| 2 | [`docs/api/Agencia.md`](docs/api/Agencia.md) | Entidade mais simples; apresenta o padrão de CRUD e HATEOAS |
+| 3 | [`docs/api/Missao.md`](docs/api/Missao.md) | Núcleo da API — roles, fluxo de aprovação, `permitirCowork` |
+| 4 | [`docs/internals/MissaoService.md`](docs/internals/MissaoService.md) | Regras internas de missão: ordem de verificações, invariantes |
+| 5 | [`docs/api/Satelite.md`](docs/api/Satelite.md) | Satélites, coordenadas orbitais e `@Embeddable` |
+| 6 | [`docs/api/Sensor.md`](docs/api/Sensor.md) | 4 tipos de sensor e herança JOINED |
+| 7 | [`docs/api/Leitura.md`](docs/api/Leitura.md) | Contrato com o ESP32 (IoT) e o `StatusCalculator` |
+| 8 | [`docs/api/Alerta.md`](docs/api/Alerta.md) | Alertas automáticos e ciclo de vida |
+| 9 | [`docs/internals/Exception.md`](docs/internals/Exception.md) | Mapa completo de erros |
+| 10 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit e relatório JaCoCo |
+| 11 | [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Infraestrutura Azure, Docker Compose e GitHub Actions |
 
 ---
 
@@ -416,8 +406,13 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
 ### Testes
 | Arquivo | Conteúdo |
 |---------|---------|
-| [`docs/tests/IntegrationTests.md`](docs/tests/IntegrationTests.md) | Coleção Postman e script PowerShell (241 testes de integração) |
 | [`docs/tests/UnitTests.md`](docs/tests/UnitTests.md) | Testes unitários JUnit/Mockito e relatório JaCoCo |
+
+### Infra e Deploy
+| Arquivo | Conteúdo |
+|---------|---------|
+| [`docs/infra/Deploy.md`](docs/infra/Deploy.md) | Infraestrutura Azure, Docker Compose, GitHub Actions |
+| [`COMANDOS_DEPLOY.md`](COMANDOS_DEPLOY.md) | Comandos prontos para copiar durante o deploy |
 
 ---
 
@@ -428,6 +423,7 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    Azure VM (Ubuntu 22.04)                   │
+│                    Standard_D2s_v3 — eastus2                 │
 │                                                              │
 │  ┌────────────────────────┐  satmonitor-net  ┌────────────┐  │
 │  │  satmonitor-app        │◄────────────────►│satmonitor  │  │
@@ -442,8 +438,6 @@ Sugestão de leitura para quem quer entender a API do zero ao deploy:
        Mobile / IoT / Postman               pgAdmin / psql
        (qualquer cliente HTTP)              (acesso externo ao DB)
 ```
-
-> O diagrama completo no padrão Azure está disponível em [`docs/architecture.png`](docs/architecture.png).
 
 ---
 
@@ -465,7 +459,8 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
   $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
   | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-sudo usermod -aG docker $USER && newgrp docker
+sudo usermod -aG docker $USER
+# Sair e reconectar via SSH para o grupo docker entrar em vigor
 ```
 
 ---
@@ -481,16 +476,9 @@ cd satmonitor
 
 ```bash
 cp .env.example .env
-nano .env
 ```
 
-Preencha com valores reais:
-
-```
-JWT_SECRET=string-longa-e-aleatoria-minimo-32-chars
-POSTGRES_USER=satuser
-POSTGRES_PASSWORD=senha-segura-aqui
-```
+O `.env.example` já contém os valores configurados. O arquivo `.env` está no `.gitignore` e nunca é commitado.
 
 ### Passo 3 — Subir os dois containers em background
 
@@ -500,77 +488,24 @@ docker compose --profile docker up --build -d
 
 - `--profile docker` — sobe `satmonitor-app-RM562312` e `satmonitor-db-RM562312`
 - `--build` — reconstrói a imagem da API (obrigatório na primeira execução)
-- `-d` — modo background (segundo plano)
+- `-d` — modo background
 
 ### Passo 4 — Verificar containers e logs
 
 ```bash
-# Status
 docker compose --profile docker ps
-
-# Logs em tempo real (ambos os containers)
 docker compose --profile docker logs -f
-# Ctrl+C para parar de seguir
-
-# Health check
 curl http://<IP-DA-VM>:8080/actuator/health
 # → {"status":"UP"}
-```
-
-### Passo 5 — Acessar os containers (evidências)
-
-```bash
-# ── Container da Aplicação ──────────────────────────────────────
-docker container exec satmonitor-app-RM562312 ls -l /app
-docker container exec satmonitor-app-RM562312 pwd
-docker container exec satmonitor-app-RM562312 whoami     # → satuser
-
-# ── Container do Banco ──────────────────────────────────────────
-docker container exec satmonitor-db-RM562312 ls -l /var/lib/postgresql/data
-docker container exec satmonitor-db-RM562312 pwd
-docker container exec satmonitor-db-RM562312 whoami      # → postgres
-```
-
-### Passo 6 — SELECT direto no banco (persistência)
-
-```bash
-# Listar tabelas criadas pelo Hibernate
-docker container exec satmonitor-db-RM562312 \
-  psql -U satuser -d satmonitor -c "\dt"
-
-# Evidências de CRUD — após usar a API
-docker container exec satmonitor-db-RM562312 \
-  psql -U satuser -d satmonitor \
-  -c "SELECT id, login, nome FROM tb_operador LIMIT 5;"
-
-docker container exec satmonitor-db-RM562312 \
-  psql -U satuser -d satmonitor \
-  -c "SELECT id, nome, status FROM tb_missao LIMIT 5;"
-
-docker container exec satmonitor-db-RM562312 \
-  psql -U satuser -d satmonitor \
-  -c "SELECT id, valor, status FROM tb_leitura_sensor LIMIT 5;"
-
-docker container exec satmonitor-db-RM562312 \
-  psql -U satuser -d satmonitor \
-  -c "SELECT id, tipo_alerta, status_alerta FROM tb_alerta LIMIT 5;"
-```
-
-### Atualizar (novo deploy)
-
-```bash
-git pull
-docker compose --profile docker up --build -d
 ```
 
 ### Desenvolvimento local (H2 em memória)
 
 ```bash
-docker compose --profile dev up --build
-# API disponível em http://localhost:8080 com banco H2 in-memory
+./gradlew bootRun
+# API disponível em http://localhost:8080
+# Swagger UI em http://localhost:8080/swagger-ui.html
 ```
-
-Health check: `GET /actuator/health`
 
 ---
 
@@ -580,5 +515,5 @@ Health check: `GET /actuator/health`
 |------------|----------|
 | **Mobile** (Fabrício) | Consome todos os endpoints; base URL = IP da VM Azure |
 | **IoT** (Miguel) | ESP32 faz `POST /leituras` com `{valor, sensorId}` — sem token |
-| **DevOps** | Dockeriza a API + PostgreSQL; containers na VM Azure |
+| **DevOps** | Dockeriza a API + PostgreSQL; containers na VM Azure com CI/CD via GitHub Actions |
 | **.NET** | API espelho para apresentação |
