@@ -6,6 +6,26 @@ API REST Java para monitoramento de satélites em órbita. Desenvolvida como Glo
 
 ---
 
+## Links do Projeto
+
+| | Link |
+|---|---|
+| **API em produção** | [http://20.122.186.91:8080](http://20.122.186.91:8080) |
+| **Swagger UI** | [http://20.122.186.91:8080/swagger-ui.html](http://20.122.186.91:8080/swagger-ui.html) |
+| **Documentação da API** | [docs/api/](docs/api/) |
+| **Vídeo de apresentação** | [https://youtu.be/rf4EX8V6Q0k](https://youtu.be/rf4EX8V6Q0k) |
+| **Repositório GitHub** | [https://github.com/pedrinzz10/satmonitor](https://github.com/pedrinzz10/satmonitor) |
+
+---
+
+## Integrantes
+
+| Nome | RM | Turma |
+|---|---|---|
+| Pedro | RM562312 | 2TDSPW |
+
+---
+
 # Disciplina: Java Advanced — Spring Boot
 
 ## O que faz
