@@ -26,12 +26,13 @@ public class AlertaController {
     private final AlertaService alertaService;
 
     @GetMapping
-    @Operation(summary = "Lista alertas — filtro opcional por ?status=ATIVO|RECONHECIDO|RESOLVIDO")
+    @Operation(summary = "Lista alertas das missões do operador — filtro opcional por ?status=ATIVO|RECONHECIDO|RESOLVIDO")
     public ResponseEntity<Page<AlertaResponse>> listar(
             @RequestParam(required = false) StatusAlerta status,
-            @PageableDefault(size = 20, sort = "dataAlerta") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "dataAlerta") Pageable pageable,
+            @AuthenticationPrincipal Operador operadorLogado) {
 
-        Page<AlertaResponse> page = alertaService.listar(status, pageable)
+        Page<AlertaResponse> page = alertaService.listar(status, operadorLogado, pageable)
                 .map(r -> { adicionarLinks(r); return r; });
         return ResponseEntity.ok(page);
     }

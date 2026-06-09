@@ -28,10 +28,10 @@ public class AlertaService {
     private final OperadorMissaoRepository operadorMissaoRepository;
 
     @Transactional(readOnly = true)
-    public Page<AlertaResponse> listar(StatusAlerta status, Pageable pageable) {
+    public Page<AlertaResponse> listar(StatusAlerta status, Operador operadorLogado, Pageable pageable) {
         Page<Alerta> page = status != null
-                ? alertaRepository.findByStatusAlerta(status, pageable)
-                : alertaRepository.findAll(pageable);
+                ? alertaRepository.findByStatusAlertaAndOperadorMissoes(status, operadorLogado.getId(), pageable)
+                : alertaRepository.findByOperadorMissoes(operadorLogado.getId(), pageable);
         return page.map(this::toResponse);
     }
 

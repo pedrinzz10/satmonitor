@@ -15,5 +15,15 @@ public interface AlertaRepository extends JpaRepository<Alerta, Long> {
 
     Page<Alerta> findByStatusAlerta(StatusAlerta statusAlerta, Pageable pageable);
 
+    @Query("SELECT a FROM Alerta a WHERE a.leitura.sensor.satelite.missao.id IN " +
+           "(SELECT om.missao.id FROM OperadorMissao om WHERE om.operador.id = :operadorId)")
+    Page<Alerta> findByOperadorMissoes(@Param("operadorId") Long operadorId, Pageable pageable);
+
+    @Query("SELECT a FROM Alerta a WHERE a.statusAlerta = :status AND a.leitura.sensor.satelite.missao.id IN " +
+           "(SELECT om.missao.id FROM OperadorMissao om WHERE om.operador.id = :operadorId)")
+    Page<Alerta> findByStatusAlertaAndOperadorMissoes(@Param("status") StatusAlerta status,
+                                                      @Param("operadorId") Long operadorId,
+                                                      Pageable pageable);
+
     void deleteByLeituraId(Long leituraId);
 }
