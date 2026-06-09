@@ -1,5 +1,8 @@
 package br.com.fiap.satmonitor.missao.controller;
 
+import br.com.fiap.satmonitor.alerta.dto.AlertaResponse;
+import br.com.fiap.satmonitor.alerta.enums.StatusAlerta;
+import br.com.fiap.satmonitor.alerta.service.AlertaService;
 import br.com.fiap.satmonitor.auth.entity.Operador;
 import br.com.fiap.satmonitor.missao.dto.*;
 import br.com.fiap.satmonitor.missao.enums.RoleMissao;
@@ -29,6 +32,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 public class MissaoController {
 
     private final MissaoService missaoService;
+    private final AlertaService alertaService;
 
     @PostMapping
     @Operation(summary = "Cria nova missão")
@@ -200,6 +204,28 @@ public class MissaoController {
         MembroResponse response = missaoService.promoverMembro(id, membroId, novoRole, operadorLogado);
         response.add(linkTo(methodOn(MissaoController.class).listarMembros(id, operadorLogado)).withRel("membros"));
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/alertas")
+    @Operation(summary = "Lista alertas de todos os satélites da missão — filtro opcional por ?status=ATIVO|RECONHECIDO|RESOLVIDO")
+    public ResponseEntity<Page<AlertaResponse>> listarAlertas(
+            @PathVariable Long id,
+            @RequestParam(required = false) StatusAlerta status,
+            @PageableDefault(size = 20, sort = "dataAlerta") Pageable pageable,
+            @AuthenticationPrincipal Operador operadorLogado) {
+
+        return ResponseEntity.ok(alertaService.listarPorMissao(id, status, operadorLogado, pageable));
+    }
+
+    @PatchMapping("/{id}/alertas/{alertaId}")
+    @Operation(summary = "Atualiza status de alerta da missão — SUPERVISOR ou DONO")
+    public ResponseEntity<AlertaResponse> atualizarStatusAlerta(
+            @PathVariable Long id,
+            @PathVariable Long alertaId,
+            @RequestParam StatusAlerta novoStatus,
+            @AuthenticationPrincipal Operador operadorLogado) {
+
+        return ResponseEntity.ok(alertaService.atualizarStatus(alertaId, novoStatus, operadorLogado));
     }
 
     private void adicionarLinks(MissaoResponse response, RoleMissao role) {

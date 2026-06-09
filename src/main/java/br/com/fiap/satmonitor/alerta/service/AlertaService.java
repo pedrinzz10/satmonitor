@@ -44,6 +44,16 @@ public class AlertaService {
     }
 
     @Transactional(readOnly = true)
+    public Page<AlertaResponse> listarPorMissao(Long missaoId, StatusAlerta status,
+                                                Operador operadorLogado, Pageable pageable) {
+        verificarRole(missaoId, operadorLogado.getId(), RoleMissao.MEMBRO);
+        Page<Alerta> page = status != null
+                ? alertaRepository.findByMissaoIdAndStatus(missaoId, status, pageable)
+                : alertaRepository.findByMissaoId(missaoId, pageable);
+        return page.map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public Page<AlertaResponse> listarPorSatelite(Long sateliteId, Pageable pageable) {
         if (!sateliteRepository.existsById(sateliteId)) {
             throw new EntityNotFoundException("Satélite não encontrado com id: " + sateliteId);
