@@ -15,6 +15,7 @@ API REST Java para monitoramento de satélites em órbita. Desenvolvida como Glo
 | **Documentação da API** | [docs/api/](docs/api/) |
 | **Vídeo de apresentação** | [https://youtu.be/rf4EX8V6Q0k](https://youtu.be/rf4EX8V6Q0k) |
 | **Video pitch** | Em breve |
+| **Vídeo DevOps (deploy)** | Em breve |
 | **Repositório GitHub** | [https://github.com/pedrinzz10/satmonitor](https://github.com/pedrinzz10/satmonitor) |
 
 ---
