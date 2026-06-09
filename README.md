@@ -435,18 +435,163 @@ Workflow: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 | Container | Imagem | Porta |
 |---|---|---|
 | `satmonitor-app-RM562312` | Build local (Dockerfile multi-stage) | 8080 (exposta) |
-| `satmonitor-db-RM562312` | `postgres:16-alpine` | 5432 (interna) |
+| `satmonitor-db-RM562312` | `postgres:16-alpine` | 5432 (exposta) |
+
+---
+
+## How-to: do clone ao ar (em nuvem)
+
+> Execute os passos abaixo conectado via SSH na VM Azure (`ssh azureuser@20.122.186.91`).
+
+### 1. Clonar o repositório
 
 ```bash
-# Subir em background
+git clone https://github.com/pedrinzz10/satmonitor.git
+cd satmonitor
+```
+
+### 2. Criar o arquivo de variáveis
+
+```bash
+cp .env.example .env
+```
+
+### 3. Subir os dois containers em background
+
+```bash
 docker compose --profile docker up --build -d
+```
 
-# Status e logs
+Aguardar ~3 minutos até `satmonitor-app-RM562312 Started`.
+
+### 4. Verificar status dos containers
+
+```bash
 docker compose --profile docker ps
-docker compose --profile docker logs -f
+```
 
-# Health check
-curl http://<IP-DA-VM>:8080/actuator/health
+Saída esperada:
+```
+NAME                        STATUS
+satmonitor-app-RM562312     Up (healthy)
+satmonitor-db-RM562312      Up (healthy)
+```
+
+### 5. Exibir logs dos dois containers
+
+```bash
+docker compose --profile docker logs --tail=40
+```
+
+### 6. Acessar o container da aplicação
+
+```bash
+docker container exec satmonitor-app-RM562312 pwd
+docker container exec satmonitor-app-RM562312 ls -l /app
+docker container exec satmonitor-app-RM562312 whoami
+# → satuser
+```
+
+### 7. Acessar o container do banco
+
+```bash
+docker container exec satmonitor-db-RM562312 pwd
+docker container exec satmonitor-db-RM562312 ls -l /var/lib/postgresql/data
+docker container exec satmonitor-db-RM562312 whoami
+# → postgres
+```
+
+### 8. Listar tabelas (SELECT no banco)
+
+```bash
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "\dt"
+```
+
+### 9. Health check da API
+
+```bash
+curl http://20.122.186.91:8080/actuator/health
+# → {"status":"UP"}
+```
+
+### 10. Evidências de CRUD com SELECT
+
+```bash
+# Criar agência
+curl -s -X POST http://20.122.186.91:8080/agencias \
+  -H "Content-Type: application/json" \
+  -d '{"nome":"Agencia Espacial Brasileira","siglaPais":"BR","tipoAgencia":"Governamental"}'
+
+# Registrar operador
+curl -s -X POST http://20.122.186.91:8080/auth/registrar \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin@sat.dev","senha":"senha123","nome":"Admin","agenciaId":1}'
+
+# SELECT — evidência do CREATE
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "SELECT id, login, nome FROM tb_operador;"
+
+# Login e token
+TOKEN=$(curl -s -X POST http://20.122.186.91:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin@sat.dev","senha":"senha123"}' \
+  | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+# Criar missão
+curl -s -X POST http://20.122.186.91:8080/missoes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"nome":"Missao Amazonia-1","descricao":"Monitoramento ambiental","dataLancamento":"2024-02-22","status":"ATIVA","senhaMissao":"amazonia123","agenciaId":1,"permitirCowork":true}'
+
+# SELECT — evidência do CREATE
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "SELECT id, nome, status FROM tb_missao;"
+
+# Criar satélite
+curl -s -X POST http://20.122.186.91:8080/satelites \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"nome":"AMAZONIA-1A","dataLancamento":"2024-02-22","tipoOrbita":"LEO","statusSatelite":"ATIVO","missaoId":1,"coordenadas":{"altitudeKm":752.0,"inclinacao":98.4,"longitudeNodo":45.0}}'
+
+# Criar sensor e leitura (gera alerta automático)
+curl -s -X POST http://20.122.186.91:8080/sensores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"nome":"Sensor Termico","tipo":"TERMICO","unidade":"C","limiteMin":-10.0,"limiteMax":80.0,"margemAlerta":10.0,"sateliteId":1,"unidadeEscala":"CELSIUS"}'
+
+curl -s -X POST http://20.122.186.91:8080/leituras \
+  -H "Content-Type: application/json" \
+  -d '{"sensorId":1,"valor":95.0,"latitude":-3.1,"longitude":-60.0}'
+
+# SELECT — evidência de leituras e alertas gerados
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, valor, status FROM tb_leitura_sensor;"
+
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor \
+  -c "SELECT id, tipo_alerta, status_alerta FROM tb_alerta;"
+
+# UPDATE
+curl -s -X PUT http://20.122.186.91:8080/missoes/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"nome":"Missao Amazonia-1 v2","descricao":"Atualizada","dataLancamento":"2024-02-22","status":"ATIVA","agenciaId":1}'
+
+# SELECT — evidência do UPDATE
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "SELECT id, nome FROM tb_missao;"
+```
+
+### 11. Demonstrar persistência (stop → start → SELECT)
+
+```bash
+docker compose --profile docker stop
+docker compose --profile docker start
+curl http://20.122.186.91:8080/actuator/health
+docker container exec satmonitor-db-RM562312 \
+  psql -U satuser -d satmonitor -c "SELECT id, login FROM tb_operador;"
 ```
 
 ---
