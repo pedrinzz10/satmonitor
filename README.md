@@ -22,9 +22,12 @@ API REST Java para monitoramento de satélites em órbita. Desenvolvida como Glo
 
 ## Integrantes
 
-| Nome | RM | Turma |
-|---|---|---|
-| Pedro | RM562312 | 2TDSPW |
+| Nome | RM | Turma | GitHub | LinkedIn |
+|---|---|---|---|---|
+| Fabrício Henrique Pereira | RM563237 | 2TDSPW | [Fabriciopereira-sp](https://github.com/Fabriciopereira-sp) | [LinkedIn](https://www.linkedin.com/in/fabr%C3%ADcio-henrique-pereira-3aa94933b) |
+| Pedro Henrique de Oliveira | RM562312 | 2TDSPW | [pedrinzz10](https://github.com/pedrinzz10) | [LinkedIn](https://www.linkedin.com/in/pedro-henrique-oliveira-484336261) |
+| Miguel Henrique Oliveira Dias | RM565492 | 2TDSPW | [Maigol123](https://github.com/Maigol123) | [LinkedIn](https://www.linkedin.com/in/miguel-oliveira-dias/) |
+| Leonardo José Pereira | RM563065 | 2TDSPW | [leojp04](https://github.com/leojp04) | [LinkedIn](https://www.linkedin.com/in/leonardojpereiradev/) |
 
 ---
 

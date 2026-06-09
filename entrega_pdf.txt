@@ -1,0 +1,180 @@
+================================================================
+PDF 1 — JAVA ADVANCED (Spring Boot)
+================================================================
+
+[CAPA]
+
+FIAP — Faculdade de Informática e Administração Paulista
+Curso: Análise e Desenvolvimento de Sistemas
+Turma: 2TDSPW
+
+Disciplina: Java Advanced
+
+Projeto: SatMonitor
+Monitoramento de satélites com Spring Boot 3, JWT e PostgreSQL
+
+Integrantes:
+  Fabrício Henrique Pereira  — RM 563237
+  Pedro Henrique de Oliveira — RM 562312
+  Miguel Henrique Oliveira Dias — RM 565492
+  Leonardo José Pereira      — RM 563065
+
+Ano: 2025
+
+================================================================
+
+[LINKS]
+
+Repositório GitHub:
+  https://github.com/pedrinzz10/satmonitor
+
+API em produção (Azure VM):
+  http://20.122.186.91:8080
+
+Swagger / Documentação interativa:
+  http://20.122.186.91:8080/swagger-ui/index.html
+
+Vídeo de apresentação (demonstração do CRUD + autenticação):
+  https://youtu.be/rf4EX8V6Q0k
+
+Vídeo pitch (3 min):
+  [INSERIR LINK AQUI]
+
+================================================================
+
+[DESCRIÇÃO DO PROJETO]
+
+O SatMonitor é uma API REST para monitoramento de satélites em
+missões espaciais. Operadores se autenticam via JWT (8 horas,
+HMAC-256) e interagem com uma hierarquia de entidades:
+
+  Agência → Missão → Satélite → Sensor → Leitura → Alerta
+
+Quando uma leitura ultrapassa os limites configurados no sensor,
+um alerta é gerado automaticamente. O controle de acesso é feito
+por roles por missão (DONO, SUPERVISOR, MEMBRO).
+
+================================================================
+
+[TECNOLOGIAS]
+
+- Java 21 + Spring Boot 3.4
+- Spring Security (JWT stateless)
+- Spring Data JPA + PostgreSQL (produção) / H2 (dev)
+- Spring HATEOAS
+- Springdoc OpenAPI 2.8 (Swagger UI)
+- Lombok, MapStruct
+- JUnit 5 + Mockito (testes unitários)
+- Docker + Docker Compose
+- GitHub Actions (CI/CD)
+- Azure Virtual Machine (Ubuntu 22.04)
+
+================================================================
+================================================================
+PDF 2 — DEVOPS
+================================================================
+
+[CAPA]
+
+FIAP — Faculdade de Informática e Administração Paulista
+Curso: Análise e Desenvolvimento de Sistemas
+Turma: 2TDSPW
+
+Disciplina: DevOps Tools & Cloud Computing
+
+Projeto: SatMonitor — Infraestrutura em Nuvem
+Deploy automatizado na Azure com Docker e GitHub Actions
+
+Integrantes:
+  Fabrício Henrique Pereira  — RM 563237
+  Pedro Henrique de Oliveira — RM 562312
+  Miguel Henrique Oliveira Dias — RM 565492
+  Leonardo José Pereira      — RM 563065
+
+Ano: 2025
+
+================================================================
+
+[LINKS]
+
+Repositório GitHub:
+  https://github.com/pedrinzz10/satmonitor
+
+API em produção:
+  http://20.122.186.91:8080
+
+Health check:
+  http://20.122.186.91:8080/actuator/health
+
+Vídeo DevOps (demonstração do deploy e infraestrutura):
+  [INSERIR LINK AQUI]
+
+Documentação técnica completa de DevOps:
+  https://github.com/pedrinzz10/satmonitor/blob/main/docs/infra/DevOps.md
+
+================================================================
+
+[DESCRIÇÃO DA INFRAESTRUTURA]
+
+A aplicação está hospedada em uma Azure Virtual Machine (Ubuntu
+22.04, Standard D2s v3 — 2 vCPUs, 8 GB RAM) na região East US 2.
+
+Recursos Azure provisionados:
+  - Resource Group: rg-satmonitor
+  - Virtual Network: vnet-satmonitor (10.0.0.0/16)
+  - Subnet: subnet-satmonitor (10.0.1.0/24)
+  - Network Security Group: portas 22 (SSH), 8080 (API), 5432 (DB)
+  - Public IP: estático, Standard SKU
+  - Network Interface Card: vincula IP público à VM
+  - Virtual Machine: vm-satmonitor-RM562312
+  - Managed Disk: OS 30 GB (implícito na criação da VM)
+
+================================================================
+
+[CONTAINERIZAÇÃO]
+
+A aplicação usa Docker Compose com dois containers:
+
+  satmonitor-app-RM562312
+    - Imagem: build local via Dockerfile multi-stage
+    - Base: eclipse-temurin:21-jdk (build) → eclipse-temurin:21-jre-alpine (runtime)
+    - Porta: 8080
+    - Usuário: satuser (sem privilégios root)
+    - Healthcheck: GET /actuator/health
+
+  satmonitor-db-RM562312
+    - Imagem: postgres:16-alpine
+    - Porta: 5432
+    - Volume: satmonitor-db-data (persistência garantida)
+    - Healthcheck: pg_isready
+
+Rede interna: satmonitor-net (bridge)
+Perfil: --profile docker (separa ambiente local H2 de produção)
+
+================================================================
+
+[CI/CD — GITHUB ACTIONS]
+
+Pipeline em .github/workflows/ci-cd.yml:
+
+  1. Trigger: push na branch main
+  2. Job test: executa ./gradlew test no Ubuntu runner
+  3. Job deploy (após test): conecta via SSH na VM Azure,
+     executa git reset --hard + git pull + docker compose up --build -d
+  4. Health check com retry (até 5 tentativas) após o deploy
+  5. Notificação de falha caso algum step quebre
+
+Secrets configurados no GitHub:
+  - SSH_PRIVATE_KEY
+  - VM_HOST
+  - VM_USER
+
+================================================================
+
+[PERSISTÊNCIA DE DADOS]
+
+O volume Docker satmonitor-db-data é gerenciado pelo Docker Engine
+na VM e sobrevive a qualquer ciclo de stop/start dos containers.
+Os dados permanecem mesmo após docker compose stop e restart.
+
+================================================================
