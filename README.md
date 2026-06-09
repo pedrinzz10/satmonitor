@@ -39,6 +39,12 @@ Agencia → Missao → Satelite → Sensor → LeituraSensor
 
 ---
 
+## Arquitetura
+
+![Arquitetura do Sistema](docs/assets/ArquiteturaDevops.png)
+
+---
+
 ## CI/CD — GitHub Actions
 
 Todo push na branch `main` dispara automaticamente:
