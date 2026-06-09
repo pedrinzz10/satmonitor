@@ -16,6 +16,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
@@ -55,13 +57,13 @@ public class SecurityConfig {
                                 .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .addHeaderWriter(new StaticHeadersWriter(
                                 "Permissions-Policy", "geolocation=(), microphone=(), camera=()")))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(unauthorizedEntryPoint()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/registrar").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/agencias/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/agencias").permitAll()
-                        .requestMatchers(HttpMethod.GET,
-                                "/satelites/**", "/sensores/**", "/leituras/**",
-                                "/agencias/**", "/alertas/**", "/missoes/buscar").permitAll()
                         .requestMatchers(HttpMethod.POST, "/leituras").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**", "/swagger-ui.html",
@@ -83,6 +85,15 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    @Bean
+    public AuthenticationEntryPoint unauthorizedEntryPoint() {
+        return (request, response, authException) -> {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"erro\":\"Nao autenticado\"}");
+        };
     }
 
     @Bean

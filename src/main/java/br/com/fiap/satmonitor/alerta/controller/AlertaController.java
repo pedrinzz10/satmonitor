@@ -39,8 +39,10 @@ public class AlertaController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Busca alerta por id")
-    public ResponseEntity<AlertaResponse> buscarPorId(@PathVariable Long id) {
-        AlertaResponse response = alertaService.buscarPorId(id);
+    public ResponseEntity<AlertaResponse> buscarPorId(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Operador operadorLogado) {
+        AlertaResponse response = alertaService.buscarPorId(id, operadorLogado);
         adicionarLinks(response);
         return ResponseEntity.ok(response);
     }
@@ -70,7 +72,7 @@ public class AlertaController {
 
     private void adicionarLinks(AlertaResponse response) {
         Long id = response.getId();
-        response.add(linkTo(methodOn(AlertaController.class).buscarPorId(id)).withSelfRel());
+        response.add(linkTo(methodOn(AlertaController.class).buscarPorId(id, null)).withSelfRel());
         response.add(linkTo(methodOn(AlertaController.class)
                 .atualizarStatus(id, null, null)).withRel("atualizar-status"));
     }

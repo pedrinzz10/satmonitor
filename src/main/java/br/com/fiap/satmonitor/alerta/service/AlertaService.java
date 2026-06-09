@@ -36,8 +36,11 @@ public class AlertaService {
     }
 
     @Transactional(readOnly = true)
-    public AlertaResponse buscarPorId(Long id) {
-        return toResponse(buscarEntidade(id));
+    public AlertaResponse buscarPorId(Long id, Operador operadorLogado) {
+        Alerta alerta = buscarEntidade(id);
+        Long missaoId = alerta.getLeitura().getSensor().getSatelite().getMissao().getId();
+        verificarRole(missaoId, operadorLogado.getId(), RoleMissao.MEMBRO);
+        return toResponse(alerta);
     }
 
     @Transactional(readOnly = true)

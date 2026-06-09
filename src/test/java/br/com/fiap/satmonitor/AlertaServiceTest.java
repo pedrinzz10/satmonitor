@@ -143,10 +143,11 @@ class AlertaServiceTest {
     class BuscarPorId {
 
         @Test
-        @DisplayName("alerta encontrado → retorna response")
+        @DisplayName("membro da missão → retorna response")
         void encontrado() {
             when(alertaRepository.findById(1L)).thenReturn(Optional.of(alerta));
-            AlertaResponse resp = service.buscarPorId(1L);
+            mockVinculo(supervisor, RoleMissao.MEMBRO);
+            AlertaResponse resp = service.buscarPorId(1L, supervisor);
             assertThat(resp.getId()).isEqualTo(1L);
             assertThat(resp.getStatusAlerta()).isEqualTo(StatusAlerta.ATIVO);
         }
@@ -155,8 +156,19 @@ class AlertaServiceTest {
         @DisplayName("alerta inexistente → EntityNotFoundException")
         void naoEncontrado() {
             when(alertaRepository.findById(99L)).thenReturn(Optional.empty());
-            assertThatThrownBy(() -> service.buscarPorId(99L))
+            assertThatThrownBy(() -> service.buscarPorId(99L, supervisor))
                     .isInstanceOf(EntityNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("não-membro acessando alerta de outra missão → AcessoNegadoException")
+        void naoMembroIdr() {
+            Operador forasteiro = Operador.builder().id(77L).login("f@t").nome("F").senha("h").build();
+            when(alertaRepository.findById(1L)).thenReturn(Optional.of(alerta));
+            when(operadorMissaoRepository.findByMissaoIdAndOperadorId(1L, forasteiro.getId()))
+                    .thenReturn(Optional.empty());
+            assertThatThrownBy(() -> service.buscarPorId(1L, forasteiro))
+                    .isInstanceOf(AcessoNegadoException.class);
         }
     }
 
