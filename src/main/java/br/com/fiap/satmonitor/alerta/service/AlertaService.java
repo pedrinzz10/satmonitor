@@ -92,12 +92,18 @@ public class AlertaService {
     private AlertaResponse toResponse(Alerta alerta) {
         var leitura = alerta.getLeitura();
         var sensor = leitura.getSensor();
+        var satelite = sensor.getSatelite();
+        var missao = satelite.getMissao();
         return AlertaResponse.builder()
                 .id(alerta.getId())
                 .leituraId(leitura.getId())
                 .valorLeitura(leitura.getValor())
+                .sensorId(sensor.getId())
                 .nomeSensor(sensor.getNome())
-                .nomeSatelite(sensor.getSatelite().getNome())
+                .sateliteId(satelite.getId())
+                .nomeSatelite(satelite.getNome())
+                .missaoId(missao.getId())
+                .nomeMissao(missao.getNome())
                 .tipoAlerta(alerta.getTipoAlerta())
                 .descricao(alerta.getDescricao())
                 .dataAlerta(alerta.getDataAlerta())

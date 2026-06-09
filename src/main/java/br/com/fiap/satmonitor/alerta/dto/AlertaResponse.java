@@ -16,8 +16,12 @@ public class AlertaResponse extends RepresentationModel<AlertaResponse> {
     private Long id;
     private Long leituraId;
     private Double valorLeitura;
+    private Long sensorId;
     private String nomeSensor;
+    private Long sateliteId;
     private String nomeSatelite;
+    private Long missaoId;
+    private String nomeMissao;
     private String tipoAlerta;
     private String descricao;
     private LocalDateTime dataAlerta;
