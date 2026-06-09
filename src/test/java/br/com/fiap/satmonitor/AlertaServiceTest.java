@@ -107,32 +107,33 @@ class AlertaServiceTest {
     class Listar {
 
         @Test
-        @DisplayName("sem filtro → findAll")
+        @DisplayName("sem filtro → findByOperadorMissoes")
         void semFiltro() {
-            when(alertaRepository.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(alerta)));
-            var page = service.listar(null, Pageable.unpaged());
+            when(alertaRepository.findByOperadorMissoes(eq(supervisor.getId()), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(alerta)));
+            var page = service.listar(null, supervisor, Pageable.unpaged());
             assertThat(page.getTotalElements()).isEqualTo(1);
-            verify(alertaRepository).findAll(any(Pageable.class));
-            verify(alertaRepository, never()).findByStatusAlerta(any(), any());
+            verify(alertaRepository).findByOperadorMissoes(eq(supervisor.getId()), any(Pageable.class));
+            verify(alertaRepository, never()).findByStatusAlertaAndOperadorMissoes(any(), any(), any());
         }
 
         @Test
-        @DisplayName("com filtro ATIVO → findByStatusAlerta")
+        @DisplayName("com filtro ATIVO → findByStatusAlertaAndOperadorMissoes")
         void comFiltroAtivo() {
-            when(alertaRepository.findByStatusAlerta(eq(StatusAlerta.ATIVO), any()))
+            when(alertaRepository.findByStatusAlertaAndOperadorMissoes(eq(StatusAlerta.ATIVO), eq(supervisor.getId()), any()))
                     .thenReturn(new PageImpl<>(List.of(alerta)));
-            var page = service.listar(StatusAlerta.ATIVO, Pageable.unpaged());
+            var page = service.listar(StatusAlerta.ATIVO, supervisor, Pageable.unpaged());
             assertThat(page.getTotalElements()).isEqualTo(1);
-            verify(alertaRepository).findByStatusAlerta(eq(StatusAlerta.ATIVO), any());
-            verify(alertaRepository, never()).findAll(any(Pageable.class));
+            verify(alertaRepository).findByStatusAlertaAndOperadorMissoes(eq(StatusAlerta.ATIVO), eq(supervisor.getId()), any());
+            verify(alertaRepository, never()).findByOperadorMissoes(any(), any());
         }
 
         @Test
         @DisplayName("filtro sem resultados → página vazia")
         void filtroSemResultados() {
-            when(alertaRepository.findByStatusAlerta(eq(StatusAlerta.RESOLVIDO), any()))
+            when(alertaRepository.findByStatusAlertaAndOperadorMissoes(eq(StatusAlerta.RESOLVIDO), eq(supervisor.getId()), any()))
                     .thenReturn(new PageImpl<>(List.of()));
-            var page = service.listar(StatusAlerta.RESOLVIDO, Pageable.unpaged());
+            var page = service.listar(StatusAlerta.RESOLVIDO, supervisor, Pageable.unpaged());
             assertThat(page).isEmpty();
         }
     }
