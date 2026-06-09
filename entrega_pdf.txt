@@ -14,10 +14,11 @@ Projeto: SatMonitor
 Monitoramento de satélites com Spring Boot 3, JWT e PostgreSQL
 
 Integrantes:
-  Fabrício Henrique Pereira  — RM 563237
-  Pedro Henrique de Oliveira — RM 562312
-  Miguel Henrique Oliveira Dias — RM 565492
-  Leonardo José Pereira      — RM 563065
+  Fabrício Henrique Pereira      — RM 563237  (IoT, Front-end)
+  Pedro Henrique de Oliveira     — RM 562312  (Java, DevOps)
+  Miguel Henrique Oliveira Dias  — RM 565492  (QA)
+  Leonardo José Pereira          — RM 563065  (.NET)
+  Henrique Sinkevicius Maran     — RM 562977  (Banco de Dados)
 
 Ano: 2025
 
@@ -86,10 +87,11 @@ Projeto: SatMonitor — Infraestrutura em Nuvem
 Deploy automatizado na Azure com Docker e GitHub Actions
 
 Integrantes:
-  Fabrício Henrique Pereira  — RM 563237
-  Pedro Henrique de Oliveira — RM 562312
-  Miguel Henrique Oliveira Dias — RM 565492
-  Leonardo José Pereira      — RM 563065
+  Fabrício Henrique Pereira      — RM 563237  (IoT, Front-end)
+  Pedro Henrique de Oliveira     — RM 562312  (Java, DevOps)
+  Miguel Henrique Oliveira Dias  — RM 565492  (QA)
+  Leonardo José Pereira          — RM 563065  (.NET)
+  Henrique Sinkevicius Maran     — RM 562977  (Banco de Dados)
 
 Ano: 2025
 

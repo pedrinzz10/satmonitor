@@ -9,6 +9,18 @@ como a infraestrutura foi montada e o que cada comando de deploy faz linha a lin
 
 ---
 
+## Equipe
+
+| Nome | RM | Responsabilidade |
+|---|---|---|
+| Fabrício Henrique Pereira | RM563237 | IoT, Front-end |
+| Pedro Henrique de Oliveira | RM562312 | Java, DevOps |
+| Miguel Henrique Oliveira Dias | RM565492 | QA |
+| Leonardo José Pereira | RM563065 | .NET |
+| Henrique Sinkevicius Maran | RM562977 | Banco de Dados |
+
+---
+
 ## Índice
 
 1. [Decisões arquiteturais](#1-decisões-arquiteturais)
