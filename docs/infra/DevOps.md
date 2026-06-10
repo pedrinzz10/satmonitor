@@ -5,6 +5,12 @@ como a infraestrutura foi montada e o que cada comando de deploy faz linha a lin
 
 ---
 
+## Vídeo de demonstração
+
+[![Vídeo DevOps — SatMonitor](https://img.youtube.com/vi/ZztE7Ou6ghc/0.jpg)](https://youtu.be/ZztE7Ou6ghc?si=aQLDmNoaZ4-EVNZ3)
+
+---
+
 ![Arquitetura do Sistema](../assets/ArquiteturaDevops.png)
 
 ---
