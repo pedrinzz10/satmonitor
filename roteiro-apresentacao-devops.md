@@ -65,10 +65,15 @@
 
 > "Aqui está o Resource Group com todos os recursos que criamos:"
 
-- **VNet** → rede privada isolada com 65 mil endereços disponíveis
-- **NSG** → firewall que libera só as portas 22 (SSH) e 8080 (API) — tudo o mais é bloqueado
-- **IP público estático** → `20.122.186.91` — não muda mesmo se a VM reiniciar
-- **VM** → Ubuntu 22.04, 2 vCPUs, 7.8 GB de RAM
+| Recurso | O que é | Para que serve no projeto |
+|---|---|---|
+| **Resource Group** `rg-satmonitor` | Pasta lógica no Azure | Agrupa todos os recursos — deleta tudo com um comando |
+| **VNet** `vnet-satmonitor` | Rede privada isolada (`10.0.0.0/16` = 65 mil IPs) | Nenhum recurso externo acessa sem autorização |
+| **Subnet** `subnet-satmonitor` | Subdivisão da VNet (`10.0.1.0/24` = 256 IPs) | Lote onde a VM fica — IP privado `10.0.1.4` |
+| **NSG** `nsg-satmonitor` | Firewall de borda | Libera só porta 22 (SSH) e 8080 (API) — bloqueia tudo o mais |
+| **IP Público** `pip-satmonitor` | Endereço `20.122.186.91` estático | Não muda se a VM reiniciar — CI/CD e app mobile dependem dele |
+| **NIC** `nic-satmonitor` | Placa de rede virtual | Conecta a VM à subnet, ao IP público e ao NSG |
+| **VM** `vm-satmonitor-RM562312` | Servidor Ubuntu 22.04 · 2 vCPUs · 7.8 GB | Roda o Docker Engine e os containers da aplicação |
 
 ---
 
