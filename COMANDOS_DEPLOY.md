@@ -49,6 +49,8 @@ az network nsg rule create \
   --access Allow
 ```
 
+> ⚠️ **Limitação conhecida:** a porta 22 está aberta para qualquer IP (`*`) pois o GitHub Actions usa IPs dinâmicos para fazer o deploy via SSH. Em produção real, restringiríamos para IPs fixos da equipe. A mitigação aplicada foi autenticação exclusivamente por chave Ed25519 — acesso por senha está desabilitado na VM.
+
 ```bash
 az network nsg rule create \
   --resource-group $RESOURCE_GROUP \
@@ -70,6 +72,8 @@ az network nsg rule create \
   --destination-port-range 5432 \
   --access Allow
 ```
+
+> ⚠️ **Regra removida em produção:** esta regra foi criada apenas para validar a conectividade inicial com o banco durante a configuração. Foi removida do NSG logo após — a porta 5432 não está exposta na VM de produção. O PostgreSQL só é acessível pelo container da aplicação via rede Docker interna (`satmonitor-net`).
 
 ```bash
 az network vnet subnet update \
@@ -169,9 +173,13 @@ git clone https://github.com/pedrinzz10/satmonitor.git
 cd satmonitor
 ```
 
+> ℹ️ **Decisão de contexto acadêmico:** o repositório é clonado diretamente na VM para simplificar o deploy via `git reset --hard`. Em produção real, a imagem seria publicada em um registry (Docker Hub ou GitHub Container Registry) e a VM apenas baixaria a imagem pronta — sem expor o código-fonte no servidor.
+
 ```bash
 cp .env.example .env
 ```
+
+> ⚠️ **Atenção:** editar o `.env` com os valores reais antes de subir os containers. O arquivo `.env` nunca é commitado no repositório — está no `.gitignore`. As credenciais existem apenas na VM de produção.
 
 ```bash
 docker compose --profile docker up --build -d
@@ -193,6 +201,14 @@ curl http://localhost:8080/actuator/health
 
 ```bash
 docker compose --profile docker logs --tail=30
+```
+
+```bash
+docker logs satmonitor-app-RM562312 --tail=30
+```
+
+```bash
+docker logs satmonitor-db-RM562312 --tail=30
 ```
 
 ```bash

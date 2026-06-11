@@ -39,6 +39,169 @@ como a infraestrutura foi montada e o que cada comando de deploy faz linha a lin
 
 ---
 
+## 0. O que é cada recurso da infraestrutura
+
+Referência rápida: o que é cada item, para que serve e onde ele aparece no projeto.
+
+---
+
+### Azure Subscription
+
+A conta Azure em si. Tudo que existe no projeto — VMs, redes, IPs — está dentro de uma Subscription. É o nível mais alto da hierarquia Azure. Os créditos de estudante FIAP ficam aqui.
+
+---
+
+### Resource Group (`rg-satmonitor`)
+
+Um agrupador lógico de recursos dentro da Subscription. Não é um servidor nem uma rede — é só uma pasta no Azure que junta todos os recursos do projeto. Serve para visualizar custo total, aplicar permissões em bloco e deletar tudo de uma vez com um único comando.
+
+---
+
+### Virtual Network — VNet (`vnet-satmonitor`)
+
+Uma rede privada virtual criada dentro do Azure. Funciona como se você tivesse comprado um roteador e definido o range de IPs que ele vai usar. Nenhum recurso de fora da VNet consegue se comunicar com os recursos de dentro — a menos que o NSG permita explicitamente.
+
+- Range configurado: `10.0.0.0/16` → 65.536 endereços IPs disponíveis
+- O `/16` significa que os primeiros 16 bits são fixos — restam 16 bits livres para endereços
+
+---
+
+### Subnet (`subnet-satmonitor`)
+
+Uma subdivisão dentro da VNet. A VNet define o terreno inteiro (`10.0.0.0/16`), a Subnet é o lote onde a VM fica (`10.0.1.0/24`). A VM recebe um IP privado dentro dessa subnet — no projeto é `10.0.1.4`.
+
+- Range configurado: `10.0.1.0/24` → 256 endereços IPs disponíveis
+- O `/24` significa que os primeiros 24 bits são fixos — restam 8 bits livres
+
+> **Por que VNet maior que a subnet?** Para poder criar outras subnets no futuro sem recriar a VNet — por exemplo, uma subnet separada para um banco externo ou cache.
+
+---
+
+### NSG — Network Security Group (`nsg-satmonitor`)
+
+O firewall do projeto. Funciona como uma lista de regras que define quais conexões podem entrar na subnet. Cada regra tem uma prioridade — **número menor é avaliado primeiro**. A primeira regra que corresponder ao tráfego é aplicada e as demais são ignoradas.
+
+Regras configuradas:
+
+| Nome | Prioridade | Porta | Decisão |
+|---|---|---|---|
+| `allow-ssh` | 100 | 22 | Permitir — acesso administrativo via SSH |
+| `allow-api` | 110 | 8080 | Permitir — API acessível externamente |
+| `DenyAllInBound` | 65500 | * | Bloquear — regra padrão do Azure, tudo o mais é negado |
+
+> A regra `allow-postgres` (porta 5432) foi removida após a configuração inicial — o banco só é acessível pela rede Docker interna, nunca pela internet.
+
+---
+
+### Public IP Address — PIP (`pip-satmonitor`)
+
+O endereço IP público do projeto: `20.122.186.91`. Foi criado como **Static**, o que significa que não muda mesmo se a VM for reiniciada. Se fosse Dynamic, o IP mudaria a cada restart — quebrando o CI/CD e qualquer cliente configurado com esse endereço.
+
+> A VM não "conhece" esse IP diretamente. O Azure faz NAT no gateway da VNet — traduz o IP público para o IP privado `10.0.1.4` da VM automaticamente.
+
+---
+
+### NIC — Network Interface Card (`nic-satmonitor`)
+
+A placa de rede virtual da VM. É ela que conecta tudo: fica na subnet (ganha o IP privado), tem o PIP associado e está vinculada ao NSG. A VM enxerga só a NIC — não sabe que tem um IP público. Isso permite reconfigurar a rede sem recriar a VM: trocar o IP público, mover para outra subnet ou adicionar interfaces novas.
+
+---
+
+### VM — Virtual Machine (`vm-satmonitor-RM562312`)
+
+O servidor em si. Um computador virtual rodando Ubuntu 22.04 LTS com 2 vCPUs e 7.8 GB de RAM, hospedado nos datacenters da Microsoft na região East US 2. É aqui que o Docker Engine roda e os containers ficam.
+
+- **IaaS** (Infrastructure as a Service): você controla o SO, as aplicações e a rede
+- **Diferença do PaaS** (App Service): no PaaS o Azure gerencia tudo isso por você — sem controle, sem SSH, sem Docker Engine configurável
+
+---
+
+### Docker Engine
+
+O processo que roda dentro da VM e gerencia todos os containers. É ele que lê o `Dockerfile`, constrói as imagens, sobe os containers e gerencia a rede interna entre eles. Sem o Docker Engine instalado na VM, nenhum container sobe.
+
+---
+
+### Docker Image
+
+Um pacote imutável que contém o sistema de arquivos da aplicação — código compilado, runtime Java, dependências e configurações. É construída a partir do `Dockerfile`. A imagem não muda depois de construída; o que muda é o container que roda a partir dela.
+
+---
+
+### Docker Container
+
+Uma instância em execução de uma imagem. É isolado do sistema operacional — tem seu próprio sistema de arquivos, rede e processo. Quando para, os dados dentro dele são perdidos (exceto o que está em volumes).
+
+No projeto existem dois containers em produção:
+- `satmonitor-app-RM562312` — roda o JAR da API Java
+- `satmonitor-db-RM562312` — roda o PostgreSQL 16
+
+---
+
+### Dockerfile (multi-stage)
+
+O arquivo que define como a imagem da aplicação é construída. O projeto usa dois estágios:
+
+- **Estágio 1 (build):** usa o JDK completo (~600 MB) para compilar o código e gerar o JAR
+- **Estágio 2 (runtime):** usa só o JRE Alpine (~200 MB) para executar o JAR
+
+A imagem final tem apenas o estágio 2 — 4x menor, sem ferramentas de build, com menor superfície de ataque.
+
+---
+
+### docker-compose.yml
+
+O arquivo que define como os containers são orquestrados juntos. Especifica quais imagens usar, quais portas expor, quais variáveis de ambiente injetar, como os containers se comunicam e em que ordem sobem. O projeto tem dois profiles:
+
+- `dev` → app + H2 em memória (desenvolvimento local, sem dependências externas)
+- `docker` → app + PostgreSQL (produção na VM)
+
+---
+
+### Volume nomeado (`satmonitor-db-data`)
+
+Um diretório gerenciado pelo Docker fora do ciclo de vida dos containers. Os dados do PostgreSQL são gravados nesse volume. Quando o container é destruído ou recriado, o volume permanece — os dados sobrevivem a restarts, rebuilds e atualizações de imagem.
+
+---
+
+### Rede Docker Bridge (`satmonitor-net`)
+
+Uma rede virtual criada pelo Docker Compose que conecta os containers entre si. Dentro dessa rede, cada container é acessível pelo nome do serviço como hostname — por isso `POSTGRES_URL=jdbc:postgresql://satmonitor-db:5432` funciona: `satmonitor-db` resolve para o IP interno do container do banco. Nenhum tráfego dessa rede fica exposto fora da VM.
+
+---
+
+### Health Check
+
+Uma verificação automática que testa se um serviço está funcionando corretamente. No projeto existem dois:
+
+- **Container do banco:** roda `pg_isready` a cada 10 segundos — confirma que o PostgreSQL aceita conexões
+- **Pipeline CI/CD:** faz `curl /actuator/health` a cada 10 segundos por até 2 minutos — confirma que a API respondeu com HTTP 200 após o deploy
+
+---
+
+### GitHub Actions Runner
+
+Um servidor temporário provisionado pelo GitHub para executar o pipeline. Usa Ubuntu, começa do zero a cada execução e é descartado ao final. Não é a VM Azure — é um servidor separado do GitHub onde os testes rodam e de onde o SSH para a VM é disparado.
+
+---
+
+### SSH (Secure Shell)
+
+Protocolo para acesso remoto seguro à VM. Funciona com par de chaves:
+
+- **Chave privada:** fica no computador do usuário (ou no GitHub Secrets para o pipeline). Nunca sai.
+- **Chave pública:** fica no arquivo `~/.ssh/authorized_keys` da VM. Pode ser compartilhada.
+
+Ao conectar, o SSH prova matematicamente que você possui a chave privada correspondente à pública registrada na VM — sem trafegar nenhuma senha pela rede.
+
+---
+
+### Variáveis de ambiente (`.env`)
+
+Arquivo que contém as credenciais e configurações sensíveis da aplicação em produção: `JWT_SECRET`, `POSTGRES_USER`, `POSTGRES_PASSWORD` e `CORS_ALLOWED_ORIGINS`. Esse arquivo existe **apenas na VM** — nunca é commitado no repositório (está no `.gitignore`). O Docker Compose lê esse arquivo e injeta as variáveis nos containers na inicialização.
+
+---
+
 ## 1. Decisões arquiteturais
 
 ### Por que Azure?
