@@ -5,42 +5,48 @@ Referência para os fluxos de negócio implementados em `MissaoService`. Útil p
 ## Índice
 
 1. [criar](#criar)
-2. [listar / buscarPorId](#listar--buscarpoid)
+2. [listar / buscarPorId / buscarPorNome](#listar--buscarpoid--buscarpornome)
 3. [atualizar / deletar](#atualizar--deletar)
 4. [solicitarEntrada](#solicitarentrada)
 5. [responderSolicitacao](#respondersolicítacao)
 6. [sair](#sair)
 7. [listarMembros / removerMembro / promoverMembro](#listarmembros--removermembro--promovermembro)
-8. [verificarRole](#verificarrole)
-9. [Invariantes](#invariantes)
+8. [verificarRole — helper privado](#verificarrole--helper-privado)
+9. [toResponse — montagem do response](#toresponse--montagem-do-response)
+10. [Invariantes](#invariantes)
 
 ---
 
 ## criar
 
 ```
-1. BCrypt.encode(senhaMissao)
-2. save(Missao)                         ← precisa do id gerado pela sequence
-3. save(OperadorMissao { role=DONO })   ← usa o id da missão
-4. toResponse(missao, DONO)
+1. resolverAgencia(agenciaId)              ← null se agenciaId for null
+2. BCrypt.encode(senhaMissao)
+3. save(Missao)                            ← sequence SEQ_MISSAO gera o id
+4. save(OperadorMissao { role=DONO, dataEntrada=now() })
+5. toResponse(missao, DONO)
 ```
 
-Dois saves em sequência dentro da mesma transação. `senhaMissao` encriptada antes de persistir — nunca em texto puro.
+Dois saves em sequência dentro da mesma `@Transactional`. A senha é encodada **antes** do save — nunca é armazenada em texto puro. O operador logado torna-se o `DONO` automaticamente.
+
+> `operadorDono` na entidade `Missao` é uma referência histórica (dono original) — o controle efetivo de permissões usa `OperadorMissao.role`, não esse campo.
 
 ---
 
-## listar / buscarPorId
+## listar / buscarPorId / buscarPorNome
 
-**listar:**
+### listar
+
 ```
 findByMembrosOperadorId(operadorLogado.id, pageable)
 → Para cada missão: findByMissaoIdAndOperadorId → role do operador
-→ Monta Page<MissaoResponse>
+→ Monta Page<MissaoResponse> com roleDoOperador preenchido
 ```
 
-N+1 por design — aceitável para a escala do projeto.
+**N+1 por design:** uma query para listar missões + 1 query por missão para buscar o role. Aceitável para a escala do projeto.
 
-**buscarPorId:**
+### buscarPorId
+
 ```
 1. findById(id)
    └─ não existe → EntityNotFoundException 404
@@ -51,7 +57,18 @@ N+1 por design — aceitável para a escala do projeto.
 3. toResponse(missao, vinculo.role)
 ```
 
-**Ordem importa:** verifica se a missão existe antes de verificar se o operador é membro. Inverter retornaria 403 mesmo para missões inexistentes — vaza a informação de que a missão não existe.
+**Ordem importa:** verifica se a missão existe antes de verificar membership. Inverter retornaria 403 mesmo para missões inexistentes — vaza a informação de que a missão não existe.
+
+**Por que AcessoNegadoException (403) aqui e não EntityNotFoundException (404)?**  
+Em GETs de leitura, a semântica é "você não tem acesso" (não que o vínculo não exista). Contrasta com `verificarRole` que lança 404 — ver seção sobre verificarRole.
+
+### buscarPorNome
+
+```
+findByNomeContainingIgnoreCase(nome, pageable)
+→ Público — não verifica membership, não exige autenticação
+→ Retorna MissaoResponse com roleDoOperador=MEMBRO fixo (placeholder)
+```
 
 ---
 
@@ -61,10 +78,11 @@ N+1 por design — aceitável para a escala do projeto.
 1. findById(id)             → 404 se não existe
 2. verificarRole(id, DONO)  → 404 se não é membro, 403 se role insuficiente
 3. Atualiza / deleta
-   └─ delete faz CASCADE em membros (OperadorMissao)
+   └─ delete faz CASCADE em: OperadorMissao, SolicitacaoEntrada
+      (satélites, sensores, leituras e alertas são removidos por cascade nas entidades filhas)
 ```
 
-`MissaoUpdateRequest` não tem `senhaMissao` — a senha não é atualizável por este endpoint.
+`MissaoUpdateRequest` não tem `senhaMissao` — a senha não é atualizável por este endpoint por design.
 
 ---
 
@@ -75,7 +93,7 @@ N+1 por design — aceitável para a escala do projeto.
    └─ não existe → EntityNotFoundException 404
 
 2. operador.agencia != null?
-   └─ null → IllegalArgumentException 400 ("não está vinculado a nenhuma agência")
+   └─ null → IllegalArgumentException 400 ("Operador não possui agência vinculada")
 
 3. missao.permitirCowork == false && agencias diferentes?
    └─ sim → AcessoNegadoException 403
@@ -92,7 +110,15 @@ N+1 por design — aceitável para a escala do projeto.
 7. save(SolicitacaoEntrada { status=PENDENTE })
 ```
 
-**Decisão de ordem:** a verificação de agência e de cowork vem **antes** da senha. Isso evita que um operador de outra agência descubra a senha da missão tentando entrar repetidamente.
+**Por que essa ordem?**
+
+| Verificação | Posição | Motivo |
+|-------------|:-------:|--------|
+| Agência do operador | 2ª | Sem agência, o operador nunca poderá entrar em missão alguma — falha rápida |
+| Cowork | 3ª | Antes da senha: impede que agência incompatível descubra a senha tentando repetidamente |
+| Senha | 4ª | Só chega aqui quem já passou pelo filtro de agência |
+| Já membro | 5ª | Só verifica o banco após confirmar que a intenção é válida |
+| Solicitação pendente | 6ª | Query separada de membership |
 
 ---
 
@@ -103,7 +129,7 @@ N+1 por design — aceitável para a escala do projeto.
    → 404 se não é membro, 403 se MEMBRO
 
 2. findById(solicitacaoId)
-   .filter(s → s.missao.id == missaoId)
+   .filter(s → s.missao.id == missaoId)    ← proteção contra IDOR
    └─ não existe ou de outra missão → EntityNotFoundException 404
 
 3. solicitacao.status != PENDENTE?
@@ -111,7 +137,7 @@ N+1 por design — aceitável para a escala do projeto.
 
 4. Se aprovar:
    solicitacao.status = APROVADO
-   save(OperadorMissao { role=MEMBRO, dataEntrada=now() })
+   save(OperadorMissao { role=MEMBRO, dataEntrada=now() })  ← sempre entra como MEMBRO
 
 5. Se rejeitar:
    solicitacao.status = REJEITADO
@@ -121,13 +147,15 @@ N+1 por design — aceitável para a escala do projeto.
    save(solicitacao)
 ```
 
+O `.filter(s → s.missao.id == missaoId)` é uma proteção contra **IDOR** (Insecure Direct Object Reference) — impede que um SUPERVISOR da missão 1 responda solicitações da missão 2 sabendo o id da solicitação.
+
 ---
 
 ## sair
 
 ```
 1. findByMissaoIdAndOperadorId(id, operadorLogado.id)
-   └─ não é membro → EntityNotFoundException 404  ← semântica: "vínculo não existe"
+   └─ não é membro → EntityNotFoundException 404  ← semântica: vínculo não existe
 
 2. Se role == DONO:
    countByMissaoIdAndRole(id, DONO)
@@ -136,21 +164,25 @@ N+1 por design — aceitável para a escala do projeto.
 3. delete(vinculo) → 204
 ```
 
-**Por que `EntityNotFoundException` (404) e não `AcessoNegadoException` (403)?** Semântica: "o vínculo que você quer desfazer não existe" é uma situação de "não encontrado", não de "sem permissão".
+**Por que EntityNotFoundException (404) e não AcessoNegadoException (403)?**  
+Semântica: "o vínculo que você quer desfazer não existe" é uma situação de "não encontrado", não de "sem permissão". A distinção é importante — 403 implicaria que o operador sabe que é membro mas não tem direito de sair.
 
 ---
 
 ## listarMembros / removerMembro / promoverMembro
 
-**listarMembros:**
+### listarMembros
+
 ```
-existsByMissaoIdAndOperadorId → AcessoNegadoException 403 se não é membro
-findByMissaoId → stream().map(toMembroResponse)
+existsByMissaoIdAndOperadorId(missaoId, operadorLogado.id)
+└─ false → AcessoNegadoException 403
+findByMissaoId(missaoId) → stream().map(toMembroResponse)
 ```
 
-Usa `existsBy` (COUNT) para verificar acesso — mais eficiente que `findBy`. Qualquer role tem acesso.
+Usa `existsBy` (COUNT) em vez de `findBy` para verificar acesso — evita carregar o objeto inteiro só para checar existência. Qualquer role tem acesso.
 
-**removerMembro / promoverMembro:**
+### removerMembro / promoverMembro
+
 ```
 1. verificarRole(missaoId, operadorLogado.id, DONO)
 2. operadorLogado.id == membroId? → AcessoNegadoException 403
@@ -158,25 +190,52 @@ Usa `existsBy` (COUNT) para verificar acesso — mais eficiente que `findBy`. Qu
 4. delete / setRole + save
 ```
 
-**Ordem: verificar role antes de verificar existência do membro** — evita que um não-DONO descubra se um determinado membro existe pelo código HTTP.
+**Verificar role ANTES de verificar existência do membro:** impede que um não-DONO descubra se um determinado membro existe pelo código HTTP da resposta.
 
 ---
 
-## verificarRole
+## verificarRole — helper privado
 
-Helper privado usado por `atualizar`, `deletar`, `listarSolicitacoes`, `responderSolicitacao`, `removerMembro`, `promoverMembro`.
+Usado por: `atualizar`, `deletar`, `listarSolicitacoes`, `responderSolicitacao`, `removerMembro`, `promoverMembro`.
 
+```java
+private void verificarRole(Long missaoId, Long operadorId, RoleMissao roleMinimo) {
+    OperadorMissao vinculo = operadorMissaoRepository
+            .findByMissaoIdAndOperadorId(missaoId, operadorId)
+            .orElseThrow(() -> new EntityNotFoundException("Você não é membro desta missão"));
+
+    if (!vinculo.getRole().temPermissao(roleMinimo)) {
+        throw new AcessoNegadoException("Role mínima exigida: " + roleMinimo.name());
+    }
+}
 ```
-1. findByMissaoIdAndOperadorId(missaoId, operadorId)
-   └─ não existe → EntityNotFoundException 404 ("Você não é membro desta missão")
 
-2. vinculo.role.temPermissao(roleMinimo)?
-   └─ false → AcessoNegadoException 403 ("Role mínima exigida: X")
+**Fluxo:**
+- Não é membro → 404 (entidade não encontrada — o vínculo de autorização não existe)
+- É membro mas role insuficiente → 403 (sem permissão)
+
+**Contraste com `buscarPorId` e `listarMembros`:** esses métodos lançam `AcessoNegadoException` (403) diretamente (sem `verificarRole`), porque no contexto de leitura a semântica é "você não tem acesso", não "o recurso não existe".
+
+**`temPermissao` por ordinal:**
+```
+DONO=0, SUPERVISOR=1, MEMBRO=2
+verificarRole(SUPERVISOR) → aceita ordinal <= 1 → DONO ✓ SUPERVISOR ✓ MEMBRO ✗
+verificarRole(DONO)       → aceita ordinal <= 0 → DONO ✓ SUPERVISOR ✗ MEMBRO ✗
 ```
 
-**Contraste com `buscarPorId` e `listarMembros`:** esses métodos lançam `AcessoNegadoException` diretamente (sem `verificarRole`), porque a semântica de "não ter acesso" faz mais sentido do que "o recurso de autorização não existe" em contextos de leitura.
+---
 
-**`temPermissao` por ordinal:** `DONO=0`, `SUPERVISOR=1`, `MEMBRO=2`. `this.ordinal() <= minimo.ordinal()`. `verificarRole(SUPERVISOR)` aceita DONO e SUPERVISOR, rejeita MEMBRO.
+## toResponse — montagem do response
+
+```java
+private MissaoResponse toResponse(Missao missao, RoleMissao roleDoOperador) {
+    int totalMembros   = (int) operadorMissaoRepository.countByMissaoId(missao.getId());
+    int totalSatelites = (int) sateliteRepository.countByMissaoId(missao.getId());
+    // ...
+}
+```
+
+Duas queries adicionais por response para contar membros e satélites. Não são carregados via lazy loading das coleções — são queries de COUNT específicas para evitar N+1 em cascata.
 
 ---
 
@@ -186,7 +245,11 @@ Helper privado usado por `atualizar`, `deletar`, `listarSolicitacoes`, `responde
 |-----------|-----------------|
 | `senhaMissao` sempre em BCrypt | `criar` (encode) / `solicitarEntrada` (matches) |
 | `senhaMissao` nunca aparece em response | `toResponse` — campo omitido |
-| Role inicial de qualquer novo membro é MEMBRO | `responderSolicitacao` cria com `MEMBRO` fixo |
-| Pelo menos 1 DONO sempre presente | `sair` verifica `countByMissaoIdAndRole` |
-| DONO pode criar múltiplos DONOs | `promoverMembro` sem restrição de direção |
+| Role inicial de qualquer novo membro é MEMBRO | `responderSolicitacao` cria com `RoleMissao.MEMBRO` fixo |
+| Pelo menos 1 DONO sempre presente | `sair` verifica `countByMissaoIdAndRole(DONO) <= 1` |
+| DONO pode criar múltiplos DONOs (co-owners) | `promoverMembro` sem restrição de quantidade |
 | Operador precisa ter agência para solicitar entrada | `solicitarEntrada` verifica antes da senha |
+| DONO não pode alterar a própria role | `promoverMembro` verifica `operadorLogado.id == membroId` |
+| DONO não pode se remover via `DELETE /membros` | `removerMembro` verifica `operadorLogado.id == membroId` |
+| Solicitação só pode ser respondida uma vez | `responderSolicitacao` verifica `status == PENDENTE` |
+| Agência incompatível não testa senha | Verificação de cowork é anterior à verificação de senha |

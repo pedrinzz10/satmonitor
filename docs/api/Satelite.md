@@ -18,12 +18,12 @@
 Um **satélite** pertence a uma missão e carrega sensores que monitoram continuamente. A hierarquia é:
 
 ```
-Missao → Satelite → Sensor → LeituraSensor
+Missao → Satelite → Sensor → LeituraSensor → Alerta
 ```
 
-Cada satélite tem **coordenadas orbitais** (altitude, inclinação, longitude do nodo) embutidas diretamente na sua tabela — sem tabela separada.
+Cada satélite tem **coordenadas orbitais** embutidas diretamente na sua tabela — sem tabela ou FK separada.
 
-**Endpoints GET são públicos** — qualquer cliente (Mobile, IoT) consulta satélites sem token. Criar, editar e excluir exigem **SUPERVISOR ou DONO** na missão.
+> **Todos os endpoints de satélite exigem token JWT.** Isso inclui os GETs — satélites são recursos vinculados a missões protegidas. Criar, editar e excluir exigem também **SUPERVISOR ou DONO** na missão.
 
 ---
 
@@ -49,6 +49,11 @@ curl -s -X POST http://localhost:8080/satelites \
   }'
 ```
 
+**Validações em `SateliteService.criar`:**
+1. Busca missão pelo `missaoId` → 404 se não existe
+2. Verifica role SUPERVISOR+ na missão → 403 se insuficiente
+3. Verifica unicidade de nome na missão → 400 se duplicado
+
 **Resposta — 201 Created:**
 ```json
 {
@@ -64,12 +69,12 @@ curl -s -X POST http://localhost:8080/satelites \
   "nomeMissao": "Missao Alpha",
   "totalSensores": 0,
   "_links": {
-    "self":        { "href": "http://localhost:8080/satelites/1" },
-    "atualizar":   { "href": "http://localhost:8080/satelites/1" },
-    "deletar":     { "href": "http://localhost:8080/satelites/1" },
-    "estatisticas":{ "href": "http://localhost:8080/satelites/1/estatisticas" },
-    "sensores":    { "href": "http://localhost:8080/sensores/satelite/1" },
-    "missao":      { "href": "http://localhost:8080/missoes/1" }
+    "self":         { "href": "http://localhost:8080/satelites/1" },
+    "atualizar":    { "href": "http://localhost:8080/satelites/1" },
+    "deletar":      { "href": "http://localhost:8080/satelites/1" },
+    "estatisticas": { "href": "http://localhost:8080/satelites/1/estatisticas" },
+    "sensores":     { "href": "http://localhost:8080/sensores/satelite/1" },
+    "missao":       { "href": "http://localhost:8080/missoes/1" }
   }
 }
 ```
@@ -78,7 +83,7 @@ curl -s -X POST http://localhost:8080/satelites \
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|:-----------:|-----------|
-| `nome` | String | Sim | Deve ser único dentro da missão |
+| `nome` | String | Sim | Deve ser **único dentro da missão** |
 | `dataLancamento` | LocalDate (`yyyy-MM-dd`) | Sim | — |
 | `missaoId` | Long | Sim | ID da missão dona do satélite |
 | `coordenadas.altitudeKm` | Double | Sim | Altitude orbital em km |
@@ -91,25 +96,28 @@ curl -s -X POST http://localhost:8080/satelites \
 
 ## Listar e buscar satélites
 
-Todos os GET de satélites são públicos — sem token.
+Todos os GETs de satélites **exigem token JWT**.
 
 ### Listar todos
 
 ```bash
-curl -s http://localhost:8080/satelites
+curl -s http://localhost:8080/satelites \
+  -H "Authorization: Bearer SEU_TOKEN"
 # Paginado, 10 por página, ordenado por nome
 ```
 
 ### Buscar por id
 
 ```bash
-curl -s http://localhost:8080/satelites/1
+curl -s http://localhost:8080/satelites/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
 ```
 
 ### Listar satélites de uma missão
 
 ```bash
-curl -s http://localhost:8080/satelites/missao/1
+curl -s http://localhost:8080/satelites/missao/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
 # Retorna 404 se a missão não existir
 ```
 
@@ -117,10 +125,11 @@ curl -s http://localhost:8080/satelites/missao/1
 
 ## Estatísticas de leituras
 
-Agrega todas as leituras de todos os sensores do satélite em uma única consulta.
+Agrega todas as leituras de todos os sensores do satélite em uma única query customizada (`buscarEstatisticas`).
 
 ```bash
-curl -s http://localhost:8080/satelites/1/estatisticas
+curl -s http://localhost:8080/satelites/1/estatisticas \
+  -H "Authorization: Bearer SEU_TOKEN"
 ```
 
 **Resposta:**
@@ -138,13 +147,28 @@ curl -s http://localhost:8080/satelites/1/estatisticas
 }
 ```
 
-Satélite sem leituras retorna todos os contadores como `0` e `ultimaLeitura: null`.
+**Comportamento quando o satélite não tem leituras:**
+
+O repository retorna `Optional.empty()` → o service usa um fallback com todos os campos zerados:
+```json
+{
+  "sateliteId": 1,
+  "nomeSatelite": "SAT-01",
+  "mediaValor": 0.0,
+  "minValor": 0.0,
+  "maxValor": 0.0,
+  "totalLeituras": 0,
+  "totalAlertas": 0,
+  "totalCriticos": 0,
+  "ultimaLeitura": null
+}
+```
 
 ---
 
 ## Editar e excluir satélite
 
-### Editar (SUPERVISOR ou DONO)
+### Editar — SUPERVISOR ou DONO
 
 ```bash
 curl -s -X PUT http://localhost:8080/satelites/1 \
@@ -162,10 +186,11 @@ curl -s -X PUT http://localhost:8080/satelites/1 \
   }'
 ```
 
-A verificação de role usa a **missão atual do satélite**, não o `missaoId` do request.  
+**Importante:** a verificação de role usa a **missão atual do satélite** (não o `missaoId` do request). O `missaoId` do request é validado apenas para verificar se existe — o satélite não é movido para outra missão via este endpoint.
+
 Nome duplicado na mesma missão retorna 400.
 
-### Excluir (apenas DONO)
+### Excluir — apenas DONO
 
 ```bash
 curl -s -X DELETE http://localhost:8080/satelites/1 \
@@ -173,7 +198,7 @@ curl -s -X DELETE http://localhost:8080/satelites/1 \
 # → 204 No Content
 ```
 
-Todos os sensores e leituras do satélite são removidos em cascata.
+O cascade remove automaticamente: todos os sensores → todas as leituras → todos os alertas do satélite.
 
 ---
 
@@ -195,18 +220,37 @@ Todos os sensores e leituras do satélite são removidos em cascata.
 | Status | Situação |
 |:------:|---------|
 | 400 | Nome duplicado na mesma missão |
+| 401 | Token ausente em qualquer endpoint (incluindo GETs) |
 | 403 | Não é membro da missão do satélite |
 | 403 | MEMBRO tentando criar ou editar (exige SUPERVISOR) |
 | 403 | SUPERVISOR tentando excluir (exige DONO) |
 | 404 | Satélite não encontrado pelo id |
 | 404 | `missaoId` informado não existe |
 
+> **Diferença de tratamento em `SateliteService.verificarRole`:** ao contrário de `MissaoService`, o `SateliteService` lança `AcessoNegadoException` (403) diretamente quando o operador não é membro — não 404. Isso porque o contexto é de acesso a um satélite específico, não de um vínculo que "não existe".
+
 ---
 
 ## Por que CoordenadasOrbitais é @Embeddable
 
-As coordenadas (`altitudeKm`, `inclinacao`, `longitudeNodo`) ficam **diretamente na tabela `TB_SATELITE`** — sem tabela própria, sem FK, sem join.
+As coordenadas (`altitudeKm`, `inclinacao`, `longitudeNodo`) ficam **diretamente na tabela `TB_SATELITE`** — sem tabela própria, sem FK, sem JOIN.
 
-**Motivo:** coordenadas não têm identidade própria. Elas só existem como parte do satélite, nunca são consultadas isoladamente, e sempre mudam em conjunto. Criar uma tabela `TB_COORDENADAS` adicionaria um join em toda consulta de satélite sem nenhum benefício real.
+```java
+@Embeddable
+public class CoordenadasOrbitais {
+    @Column(name = "altitude_km")    private Double altitudeKm;
+    @Column(name = "inclinacao")     private Double inclinacao;
+    @Column(name = "longitude_nodo") private Double longitudeNodo;
+}
 
-Com `@Embeddable`, a query de satélite é um simples `SELECT * FROM TB_SATELITE` sem joins extras.
+@Entity
+public class Satelite {
+    @Embedded
+    private CoordenadasOrbitais coordenadas;
+    // → campos altitude_km, inclinacao, longitude_nodo ficam em TB_SATELITE
+}
+```
+
+**Motivo:** coordenadas não têm identidade própria — só existem como parte do satélite, nunca são consultadas isoladamente, e sempre mudam em conjunto. Criar `TB_COORDENADAS` adicionaria um JOIN em toda consulta de satélite sem nenhum benefício real.
+
+Com `@Embeddable`, `SELECT * FROM TB_SATELITE` retorna tudo de uma vez, sem joins.

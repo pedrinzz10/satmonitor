@@ -18,20 +18,19 @@
 Um **alerta** é criado automaticamente pela API sempre que uma leitura recebe status `ALERTA` ou `CRITICO`. Ele representa um evento anômalo que precisa ser reconhecido e resolvido pelo time de operações.
 
 ```
-POST /leituras { valor: 150.0, sensorId: 1 }
+POST /leituras { valor: 150.0, sensorId: 1 }  (público — sem token)
     ↓
-StatusCalculator → CRITICO
-    ↓
-LeituraSensor salva com status=CRITICO
-    ↓
-Alerta criado automaticamente (statusAlerta=ATIVO)
+LeituraService.criar() — 1 transação:
+    ├─ StatusCalculator → CRITICO
+    ├─ LeituraSensor salva com status=CRITICO
+    └─ Alerta criado automaticamente (statusAlerta=ATIVO)
     ↓
 TB_ALERTA persiste (statusAlerta=ATIVO)
     ↓
-Mobile exibe alerta em vermelho
+Mobile / Operador vê o alerta via GET /alertas ou GET /missoes/{id}/alertas
 ```
 
-**Endpoints GET são públicos** — sem token. `PATCH` exige autenticação **e role SUPERVISOR ou DONO** na missão do sensor.
+> **Todos os endpoints de alerta exigem token JWT** — GETs incluídos. O `GET /alertas` retorna apenas os alertas das missões às quais o operador logado pertence.
 
 ---
 
@@ -39,10 +38,15 @@ Mobile exibe alerta em vermelho
 
 O `LeituraService` verifica o status calculado após cada `POST /leituras`. Se for `ALERTA` ou `CRITICO`, um `Alerta` é criado automaticamente na mesma transação:
 
-- `tipoAlerta` = nome do status (`"ALERTA"` ou `"CRITICO"`)
-- `descricao` = mensagem automática com nome do sensor, valor e limites
-- `dataAlerta` = instante do registro (servidor)
-- `statusAlerta` = `ATIVO`
+```java
+alertaRepository.save(Alerta.builder()
+    .leitura(leitura)
+    .tipoAlerta(status.name())  // "ALERTA" ou "CRITICO"
+    .descricao("Sensor 'X': valor Y fora dos limites [min, max]")
+    .build());
+// statusAlerta = ATIVO  (@Builder.Default na entity Alerta)
+// dataAlerta   = now()  (@Builder.Default na entity Alerta)
+```
 
 Leituras `NORMAL` **não geram alerta**.
 
@@ -56,29 +60,65 @@ ATIVO  →  RECONHECIDO  →  RESOLVIDO
 
 | Status | Significado |
 |--------|-------------|
-| `ATIVO` | Alerta recém-gerado, ainda não tratado |
-| `RECONHECIDO` | Time de operações está ciente |
-| `RESOLVIDO` | Problema corrigido |
+| `ATIVO` | Alerta recém-gerado, ainda não tratado pelo time |
+| `RECONHECIDO` | Time de operações está ciente e investigando |
+| `RESOLVIDO` | Problema corrigido ou descartado |
 
-A transição é feita via `PATCH /alertas/{id}?novoStatus=X`. Não há validação de ordem — qualquer transição é aceita.
+A transição é feita via `PATCH`. Não há validação de ordem — qualquer transição é aceita (`RESOLVIDO → ATIVO`, `ATIVO → RESOLVIDO`, etc.).
 
 ---
 
 ## Listar e buscar alertas
 
-### Listar todos (sem filtro)
+Todos os GETs **exigem token JWT**.
+
+### Listar alertas das minhas missões
 
 ```bash
-GET http://localhost:8080/alertas
+# Todos os alertas das missões do operador logado
+curl -s http://localhost:8080/alertas \
+  -H "Authorization: Bearer SEU_TOKEN"
+
+# Filtrar por status
+curl -s "http://localhost:8080/alertas?status=ATIVO" \
+  -H "Authorization: Bearer SEU_TOKEN"
 ```
 
-### Filtrar por status
+> O `GET /alertas` **filtra pelos alertas das missões que o operador pertence** — não retorna alertas de todas as missões do sistema. A query no `AlertaRepository` faz JOIN com `TB_OPERADOR_MISSAO` para garantir isso.
+
+### Buscar por id
 
 ```bash
-GET http://localhost:8080/alertas?status=ATIVO
-GET http://localhost:8080/alertas?status=RECONHECIDO
-GET http://localhost:8080/alertas?status=RESOLVIDO
+curl -s http://localhost:8080/alertas/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
 ```
+
+Verifica que o operador é membro (`MEMBRO` ou acima) da missão do alerta. Retorna 403 se não for membro.
+
+### Alertas de uma missão específica
+
+Acessado via `MissaoController` (não `AlertaController`):
+
+```bash
+# Todos os alertas da missão 1
+curl -s http://localhost:8080/missoes/1/alertas \
+  -H "Authorization: Bearer SEU_TOKEN"
+
+# Filtrar por status
+curl -s "http://localhost:8080/missoes/1/alertas?status=ATIVO" \
+  -H "Authorization: Bearer SEU_TOKEN"
+```
+
+Exige ser membro da missão (qualquer role).
+
+### Alertas de um satélite
+
+```bash
+curl -s http://localhost:8080/alertas/satelite/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
+```
+
+Retorna 404 se o satélite não existir. Não verifica membership — lista todos os alertas do satélite para qualquer operador autenticado.
 
 **Resposta — 200 OK:**
 ```json
@@ -88,10 +128,14 @@ GET http://localhost:8080/alertas?status=RESOLVIDO
       "id": 1,
       "leituraId": 42,
       "valorLeitura": 150.0,
-      "nomeSensor": "Termometro",
+      "sensorId": 1,
+      "nomeSensor": "Termometro Principal",
+      "sateliteId": 1,
       "nomeSatelite": "SAT-01",
+      "missaoId": 1,
+      "nomeMissao": "Missao Alpha",
       "tipoAlerta": "CRITICO",
-      "descricao": "Sensor 'Termometro': valor 150.0 fora dos limites [-10.0, 90.0]",
+      "descricao": "Sensor 'Termometro Principal': valor 150.0 fora dos limites [-10.0, 90.0]",
       "dataAlerta": "2026-06-04T21:15:03.412",
       "statusAlerta": "ATIVO",
       "_links": {
@@ -105,39 +149,32 @@ GET http://localhost:8080/alertas?status=RESOLVIDO
 }
 ```
 
-### Buscar por id
-
-```bash
-GET http://localhost:8080/alertas/1
-```
-
-### Listar alertas de um satélite
-
-```bash
-GET http://localhost:8080/alertas/satelite/1
-```
-
-Retorna 404 se o satélite não existir.
-
 ---
 
 ## Atualizar status (reconhecer/resolver)
 
-Exige autenticação **e role SUPERVISOR ou DONO** na missão do sensor que gerou o alerta.
+Exige autenticação **e role SUPERVISOR ou DONO** na missão do alerta. A verificação percorre `Alerta → Leitura → Sensor → Satelite → Missao` para obter o `missaoId`.
 
-### Reconhecer alerta
+### Via AlertaController
 
 ```bash
+# Reconhecer alerta
 curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RECONHECIDO" \
   -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
-```
 
-### Resolver alerta
-
-```bash
+# Resolver alerta
 curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RESOLVIDO" \
   -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
 ```
+
+### Via MissaoController (vinculado à missão)
+
+```bash
+curl -s -X PATCH "http://localhost:8080/missoes/1/alertas/7?novoStatus=RECONHECIDO" \
+  -H "Authorization: Bearer SEU_TOKEN_SUPERVISOR"
+```
+
+**Ambos os endpoints chamam o mesmo `AlertaService.atualizarStatus`.**
 
 **Resposta — 200 OK:**
 ```json
@@ -150,7 +187,7 @@ curl -s -X PATCH "http://localhost:8080/alertas/1?novoStatus=RESOLVIDO" \
 }
 ```
 
-> **MEMBRO da missão não pode atualizar alertas** — exige SUPERVISOR ou DONO. Retorna 403 se a role for insuficiente.
+> **MEMBRO não pode atualizar alertas** — exige SUPERVISOR ou DONO. Retorna 403 se a role for insuficiente.
 
 ---
 
@@ -170,6 +207,7 @@ O `TB_ALERTA` é gerenciado inteiramente pelo Hibernate. A API Java insere regis
 | Responsabilidade | Quem |
 |-----------------|------|
 | Criar linha em `TB_ALERTA` | API Java (automático via `LeituraService`) |
+| Deletar alerta ao deletar leitura | API Java — `alertaRepository.deleteByLeituraId(id)` antes do `leituraRepository.delete(leitura)` |
 | Atualizar status | API Java — endpoint `PATCH /alertas/{id}` |
 | Exibir alerta no app | Mobile — consulta `GET /alertas` |
 
@@ -179,8 +217,8 @@ O `TB_ALERTA` é gerenciado inteiramente pelo Hibernate. A API Java insere regis
 
 | Status | Situação |
 |:------:|---------|
-| 401 | Token ausente no PATCH |
-| 403 | MEMBRO da missão tentando atualizar status |
+| 401 | Token ausente em qualquer endpoint (incluindo GETs) |
+| 403 | MEMBRO da missão tentando atualizar status (exige SUPERVISOR) |
 | 403 | Operador não é membro da missão do alerta |
 | 404 | Alerta não encontrado pelo id |
 | 404 | Satélite não encontrado em `GET /alertas/satelite/{id}` |

@@ -10,7 +10,7 @@
 6. [Excluir sensor](#excluir-sensor)
 7. [Links HATEOAS](#links-hateoas)
 8. [Erros](#erros)
-9. [Por que herança JOINED](#por-que-herança-joined)
+9. [Internals: factory pattern e herança JOINED](#internals-factory-pattern-e-herança-joined)
 
 ---
 
@@ -19,15 +19,17 @@
 Um **sensor** é um instrumento acoplado a um satélite que gera leituras contínuas. Cada sensor define:
 
 - **`limiteMin` / `limiteMax`** — a faixa de operação segura
-- **`margemAlerta`** — percentual (%) da faixa que antecede os limites críticos (zona de pré-alerta)
+- **`margemAlerta`** — percentual (0–100%) da faixa que antecede os limites críticos (zona de pré-alerta)
 
-Quando o ESP32 registra uma leitura, o `StatusCalculator` usa esses parâmetros para classificar automaticamente como **NORMAL**, **ALERTA** ou **CRITICO**.
+Quando o IoT registra uma leitura, o `StatusCalculator` usa esses parâmetros para classificar automaticamente como **NORMAL**, **ALERTA** ou **CRITICO**. Ver [Leitura.md](Leitura.md).
+
+> **Todos os endpoints de sensor exigem token JWT.** Isso inclui os GETs — sensores são recursos vinculados a missões protegidas.
 
 ---
 
 ## Os 4 tipos de sensor
 
-Cada tipo tem um campo extra obrigatório:
+Cada tipo tem um campo extra obrigatório. O campo específico aparece na resposta como `"detalhe"`:
 
 | Tipo | Campo no request | Valores aceitos |
 |------|:----------------:|----------------|
@@ -36,9 +38,7 @@ Cada tipo tem um campo extra obrigatório:
 | `RADIACAO` | `tipoRadiacao` | `IONIZANTE`, `NAO_IONIZANTE` |
 | `MAGNETOMETRO` | `eixosMedicao` | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ`, `XYZ` |
 
-O campo específico aparece na resposta como `"detalhe"` (ex: `"detalhe": "CELSIUS"`).
-
-> **Tipo imutável:** após a criação, o tipo não pode ser alterado. Se precisar mudar, delete o sensor e crie um novo.
+> **Tipo imutável:** após a criação, o tipo não pode ser alterado via `PUT`. O service ignora `tipo` no update. Para mudar o tipo, delete o sensor e crie um novo (histórico de leituras é perdido).
 
 ---
 
@@ -145,33 +145,43 @@ curl -s -X POST http://localhost:8080/sensores \
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|:-----------:|-----------|
-| `nome` | String | Sim | Único por satélite |
-| `unidade` | String | Sim | Unidade de medida (ex: `"graus_C"`, `"hPa"`) |
-| `limiteMin` | Double | Sim | Deve ser **menor** que `limiteMax` |
+| `nome` | String | Sim | Deve ser **único por satélite** |
+| `unidade` | String | Sim | Unidade de medida (ex: `"graus_C"`, `"hPa"`, `"nT"`) |
+| `limiteMin` | Double | Sim | Deve ser **estritamente menor** que `limiteMax` |
 | `limiteMax` | Double | Sim | — |
-| `margemAlerta` | Double | Sim | Percentual de 0 a 100 |
-| `sateliteId` | Long | Sim | — |
+| `margemAlerta` | Double | Sim | Percentual de 0 a 100 (validado com `@DecimalMin("0")` `@DecimalMax("100")`) |
+| `sateliteId` | Long | Sim | ID do satélite ao qual o sensor será acoplado |
 | `tipo` | Enum | Sim | `TERMICO`, `PRESSAO`, `RADIACAO` ou `MAGNETOMETRO` |
-| `unidadeEscala` | Enum | Se TERMICO | `CELSIUS`, `FAHRENHEIT` ou `KELVIN` |
-| `tipoPressao` | Enum | Se PRESSAO | `ABSOLUTA` ou `RELATIVA` |
-| `tipoRadiacao` | Enum | Se RADIACAO | `IONIZANTE` ou `NAO_IONIZANTE` |
-| `eixosMedicao` | Enum | Se MAGNETOMETRO | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ` ou `XYZ` |
+| `unidadeEscala` | String | Obrigatório se `TERMICO` | `CELSIUS`, `FAHRENHEIT` ou `KELVIN` |
+| `tipoPressao` | String | Obrigatório se `PRESSAO` | `ABSOLUTA` ou `RELATIVA` |
+| `tipoRadiacao` | String | Obrigatório se `RADIACAO` | `IONIZANTE` ou `NAO_IONIZANTE` |
+| `eixosMedicao` | String | Obrigatório se `MAGNETOMETRO` | `X`, `Y`, `Z`, `XY`, `XZ`, `YZ` ou `XYZ` |
+
+**Validações em `SensorService.criar`:**
+1. Busca satélite pelo `sateliteId` → 404 se não existe
+2. Verifica role SUPERVISOR+ na missão do satélite → 403 se insuficiente
+3. Valida `limiteMin < limiteMax` → 400 se violado
+4. Verifica unicidade de nome no satélite → 400 se duplicado
+5. Instancia a subclasse correta (factory pattern — ver seção abaixo)
 
 ---
 
 ## Listar e buscar sensores
 
-GET de sensores é público — sem token.
+Todos os GETs de sensores **exigem token**.
 
 ```bash
 # Listar todos
-curl -s http://localhost:8080/sensores
+curl -s http://localhost:8080/sensores \
+  -H "Authorization: Bearer SEU_TOKEN"
 
 # Buscar por id
-curl -s http://localhost:8080/sensores/1
+curl -s http://localhost:8080/sensores/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
 
 # Listar sensores de um satélite
-curl -s http://localhost:8080/sensores/satelite/1
+curl -s http://localhost:8080/sensores/satelite/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
 # Retorna 404 se o satélite não existir
 ```
 
@@ -179,7 +189,7 @@ curl -s http://localhost:8080/sensores/satelite/1
 
 ## Editar sensor
 
-Exige **SUPERVISOR ou DONO**. Apenas os campos comuns são atualizáveis (`nome`, `unidade`, `limiteMin`, `limiteMax`, `margemAlerta`):
+Exige **SUPERVISOR ou DONO**. Apenas os campos comuns são atualizáveis (`nome`, `unidade`, `limiteMin`, `limiteMax`, `margemAlerta`). O tipo e o campo específico são **imutáveis**:
 
 ```bash
 curl -s -X PUT http://localhost:8080/sensores/1 \
@@ -197,7 +207,7 @@ curl -s -X PUT http://localhost:8080/sensores/1 \
   }'
 ```
 
-**O tipo e o campo específico são imutáveis.** Mesmo enviando `tipo` diferente no request, o valor original é mantido.
+O `PUT` aceita o request completo (incluindo `tipo` e campo específico) mas **ignora esses campos** — o service não altera a subclasse. A verificação de role usa a **missão atual do satélite** (não o `sateliteId` do request).
 
 **Para mudar o tipo:** delete o sensor e crie um novo. O histórico de leituras é perdido.
 
@@ -205,7 +215,7 @@ curl -s -X PUT http://localhost:8080/sensores/1 \
 
 ## Excluir sensor
 
-Exige **DONO**. Exclui o sensor e todas as suas leituras em cascata.
+Exige **DONO**. Remove o sensor e todas as suas leituras e alertas em cascata.
 
 ```bash
 curl -s -X DELETE http://localhost:8080/sensores/1 \
@@ -233,8 +243,9 @@ curl -s -X DELETE http://localhost:8080/sensores/1 \
 |:------:|---------|
 | 400 | `limiteMin >= limiteMax` |
 | 400 | Nome duplicado no mesmo satélite |
-| 400 | Campo obrigatório do tipo ausente (ex: `unidadeEscala` para TERMICO) |
-| 400 | Valor de enum inválido (ex: `"tipo": "SONICO"`) |
+| 400 | Campo obrigatório do tipo ausente (ex: `unidadeEscala` ausente para TERMICO) |
+| 400 | Valor de enum inválido (ex: `"tipo": "SONICO"`) → JSON inválido |
+| 401 | Token ausente em qualquer endpoint (incluindo GETs) |
 | 403 | Não é membro da missão do satélite |
 | 403 | MEMBRO tentando criar ou editar (exige SUPERVISOR) |
 | 403 | SUPERVISOR tentando excluir (exige DONO) |
@@ -243,27 +254,62 @@ curl -s -X DELETE http://localhost:8080/sensores/1 \
 
 ---
 
-## Por que herança JOINED
+## Internals: factory pattern e herança JOINED
 
-Os 4 tipos compartilham campos comuns mas cada um tem um campo específico adicional.
+### Por que herança JOINED?
 
 | Estratégia | Como funciona | Problema |
 |------------|--------------|---------|
-| `SINGLE_TABLE` | Uma tabela só | Colunas específicas ficam nulas para outros tipos |
-| `JOINED` | Uma tabela base + uma por subclasse | Um join por consulta polimórfica |
+| `SINGLE_TABLE` | Uma tabela só, com discriminator | Colunas específicas ficam nulas para outros tipos — má normalização |
+| `JOINED` ✓ | Tabela base + uma por subclasse | Um join por consulta polimórfica — normalização perfeita |
 | `TABLE_PER_CLASS` | Uma tabela completa por tipo | Consultas polimórficas usam UNION — ineficiente |
 
 **JOINED foi escolhida porque:**
-- Evita colunas NULL em massa (melhor normalização)
-- Os 4 tipos são consultados juntos frequentemente (`SELECT * FROM TB_SENSOR`)
-- Sequence `SEQ_SENSOR` é compartilhada entre todos os tipos
+- Evita colunas NULL em massa (cada sensor tem exatamente 1 campo extra)
+- Os 4 tipos são consultados juntos com frequência (`SELECT * FROM TB_SENSOR`)
+- `SEQ_SENSOR` é compartilhada — ids únicos entre todos os tipos
 
 **Tabelas criadas:**
 
 | Tabela | Conteúdo |
 |--------|---------|
-| `TB_SENSOR` | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id |
-| `TB_SENSOR_TERMICO` | id (FK), unidade_escala |
-| `TB_SENSOR_PRESSAO` | id (FK), tipo_pressao |
-| `TB_SENSOR_RADIACAO` | id (FK), tipo_radiacao |
-| `TB_MAGNETOMETRO` | id (FK), eixos_medicao |
+| `TB_SENSOR` | id, nome, unidade, limiteMin, limiteMax, margemAlerta, satelite_id, tipo_sensor (discriminator) |
+| `TB_SENSOR_TERMICO` | id (FK → TB_SENSOR), unidade_escala |
+| `TB_SENSOR_PRESSAO` | id (FK → TB_SENSOR), tipo_pressao |
+| `TB_SENSOR_RADIACAO` | id (FK → TB_SENSOR), tipo_radiacao |
+| `TB_MAGNETOMETRO` | id (FK → TB_SENSOR), eixos_medicao |
+
+### Factory pattern em `instanciarSubclasse`
+
+```java
+private Sensor instanciarSubclasse(SensorRequest req) {
+    return switch (req.tipo()) {
+        case TERMICO -> {
+            if (req.unidadeEscala() == null || req.unidadeEscala().isBlank())
+                throw new IllegalArgumentException("unidadeEscala é obrigatório para TERMICO");
+            SensorTermico s = new SensorTermico();
+            s.setUnidadeEscala(UnidadeEscala.valueOf(req.unidadeEscala().toUpperCase()));
+            yield s;
+        }
+        case PRESSAO -> { ... }
+        case RADIACAO -> { ... }
+        case MAGNETOMETRO -> { ... }
+    };
+}
+```
+
+O `switch` com `yield` é Java 14+. Cada case valida o campo específico antes de instanciar. O `toUpperCase()` torna a validação case-insensitive (aceita `"celsius"` e `"CELSIUS"`).
+
+### Pattern matching Java 21 em `toResponse`
+
+```java
+String detalhe = switch (sensor) {
+    case SensorTermico t  -> t.getUnidadeEscala().name();
+    case SensorPressao p  -> p.getTipoPressao().name();
+    case SensorRadiacao r -> r.getTipoRadiacao().name();
+    case Magnetometro m   -> m.getEixosMedicao().name();
+    default -> null;
+};
+```
+
+Pattern matching para `instanceof` — Java 21 detecta o tipo em runtime e faz o cast ao mesmo tempo. Sem `instanceof` explícito, sem cast manual.
