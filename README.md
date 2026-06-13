@@ -20,6 +20,31 @@ API REST Java para monitoramento de satélites em órbita. Desenvolvida como Glo
 
 ---
 
+## Status da VM de Produção
+
+> **VM atualmente desalocada** — a VM Azure (`vm-satmonitor-RM562312`) foi desalocada intencionalmente para preservar os créditos restantes da conta estudantil após a entrega do projeto.
+
+### O que isso significa
+
+| Item | Estado |
+|---|---|
+| Dados do banco (PostgreSQL) | Intactos — volume Docker preservado no disco da VM |
+| Configuração da VM | Intacta — `.env`, imagens Docker, repositório na VM |
+| IP público `20.122.186.91` | Reservado — IP estático SKU Standard, não é liberado com a desalocação |
+| CI/CD (GitHub Actions) | Testes continuam funcionando; deploy reativa automaticamente ao ligar |
+
+A VM foi desalocada com `az vm deallocate` — diferente de um simples stop, a desalocação interrompe a cobrança de compute sem liberar o IP estático nem apagar os dados em disco.
+
+### Para reativar (Azure Cloud Shell)
+
+```bash
+az vm start --resource-group rg-satmonitor --name vm-satmonitor-RM562312
+```
+
+Após ~1 minuto os containers sobem automaticamente (política `restart: unless-stopped`) e a API volta a responder em `http://20.122.186.91:8080`.
+
+---
+
 ## Integrantes
 
 | Nome | RM | Turma | Responsabilidade | GitHub | LinkedIn |
