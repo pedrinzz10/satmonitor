@@ -35,6 +35,7 @@ services:
     image: postgres:16-alpine
     profiles: [docker]
     container_name: satmonitor-db-RM562312
+    restart: unless-stopped
     networks:
       - satmonitor-net
     volumes:
@@ -55,6 +56,7 @@ services:
     build: .
     profiles: [docker]
     container_name: satmonitor-app-RM562312
+    restart: unless-stopped
     networks:
       - satmonitor-net
     environment:
